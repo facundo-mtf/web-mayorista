@@ -1,0 +1,41 @@
+Aquí tienes un resumen ejecutivo y directo, diseñado para que tengas una visión clara del proyecto de un vistazo:
+
+Resumen Ejecutivo: App B2B de Pedidos
+Objetivo del Sistema
+Crear una plataforma exclusiva para clientes mayoristas que digitalice la toma de pedidos, permitiendo la autogestión de sus múltiples entidades fiscales y la validación inmediata de pagos para agilizar el despacho.
+
+Componentes Clave
+Gestión de Entidades:
+
+Un único usuario puede administrar varias Razones Sociales y Sucursales.
+
+El cliente carga sus propios Expresos (logística en CABA).
+
+Modelo Comercial (Precios y Descuentos):
+
+Acceso Restringido: Precios y stock ocultos hasta que el Admin aprueba al cliente.
+
+Descuento BASE: Definido por el Admin de forma personalizada por cliente.
+
+Descuento Pronto Pago: 10% adicional automático si el cliente paga por Transferencia o Mercado Pago.
+
+Acuerdo con Vendedor: Opción de pago manual sin descuento adicional y sin mostrar datos bancarios.
+
+Reglas de Validación (Checkout):
+
+Fiscal: Si el pedido es factura A o A 1/2, el CUIT es obligatorio. Si es R, es opcional.
+
+Financiera: Para obtener el -10%, el cliente debe adjuntar obligatoriamente una imagen del comprobante.
+
+Administrativa: El sistema no valida el contenido de la imagen ni el límite de crédito (se gestiona por fuera).
+
+Flujo de Información:
+
+El sistema genera una Nota de Pedido completa con: Datos fiscales + Sucursal de entrega + Datos del expreso + Comprobante de pago + Vendedor asignado.
+
+Pasos a Seguir
+Desarrollo de Base de Datos: Crear las relaciones Usuario-Razón Social-Sucursal.
+
+Panel de Admin: Interfaz para aprobar usuarios y cargar el stock/precios.
+
+Panel de Cliente: Interfaz de catálogo y checkout con los 5 selectores.

@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Usuarios: cada uno puede crear/leer su propio documento al registrarse
+    match /users/{userId} {
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Razones sociales, sucursales, expresos: solo el dueño
+    match /razonesSociales/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /sucursales/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    match /expresos/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Productos: lectura para autenticados, escritura solo admin
+    match /productos/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Pedidos: clientes crean los suyos, admin lee todos
+    match /pedidos/{docId} {
+      allow create: if request.auth != null;
+      allow read, write: if request.auth != null;
+    }
+    
+    // Contador de pedidos (para ID consecutivo)
+    match /counters/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Vendedores: solo admin
+    match /vendedores/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+  }
+}
