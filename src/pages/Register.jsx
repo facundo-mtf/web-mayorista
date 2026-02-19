@@ -8,8 +8,8 @@ export default function Register() {
   const [form, setForm] = useState({
     email: '',
     password: '',
-    nombreEmpresa: '',
-    rubro: '',
+    nombre: '',
+    apellido: '',
     telefono: '',
   })
   const [error, setError] = useState('')
@@ -28,14 +28,15 @@ export default function Register() {
       const { user } = await createUserWithEmailAndPassword(auth, form.email, form.password)
       await setDoc(doc(db, 'users', user.uid), {
         email: form.email,
-        nombreEmpresa: form.nombreEmpresa,
-        rubro: form.rubro,
-        telefono: form.telefono || null,
+        nombreContacto: form.nombre || null,
+        apellidoContacto: form.apellido || null,
+        telefonoContacto: form.telefono || null,
+        emailContacto: form.email,
         role: 'cliente',
-        approved: false,
+        approved: true,
         createdAt: new Date(),
       })
-      navigate('/pendiente')
+      navigate('/datos', { state: { fromRegister: true } })
     } catch (err) {
       setError(err.code === 'auth/email-already-in-use' ? 'Ese email ya está registrado' : err.message)
     } finally {
@@ -72,33 +73,33 @@ export default function Register() {
             />
           </label>
           <label>
-            Nombre de la empresa *
+            Nombre *
             <input
               type="text"
-              name="nombreEmpresa"
-              value={form.nombreEmpresa}
+              name="nombre"
+              value={form.nombre}
               onChange={handleChange}
               required
             />
           </label>
           <label>
-            Rubro *
+            Apellido *
             <input
               type="text"
-              name="rubro"
-              value={form.rubro}
+              name="apellido"
+              value={form.apellido}
               onChange={handleChange}
-              placeholder="Ej: Alimentos, Bebidas..."
               required
             />
           </label>
           <label>
-            Teléfono
+            Teléfono *
             <input
               type="tel"
               name="telefono"
               value={form.telefono}
               onChange={handleChange}
+              required
             />
           </label>
           <button type="submit" className="btn btn-primary btn-block" disabled={loading}>

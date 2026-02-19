@@ -2,6 +2,7 @@ import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { auth } from '../firebase/config'
 import { useAuth } from '../context/AuthContext'
+import WhatsAppFab from './WhatsAppFab'
 
 export default function Layout() {
   const { user, profile, isAdmin } = useAuth()
@@ -40,6 +41,7 @@ export default function Layout() {
       <main className="main">
         <Outlet />
       </main>
+      <WhatsAppFab />
     </div>
   )
 }

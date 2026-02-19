@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../context/AuthContext'
+import { formatMoneda } from '../../utils/formatoNumero'
 
 export default function MisPedidos() {
   const { user } = useAuth()
@@ -39,21 +40,25 @@ export default function MisPedidos() {
               <div className="pedido-header">
                 <span>#{p.numeroPedido ?? p.id.slice(-6)}</span>
                 <span>{formatDate(p.createdAt)}</span>
-                <span>{p.estado || 'pendiente'}</span>
               </div>
               <div className="pedido-body">
                 <p><strong>Razón social:</strong> {p.razonSocial?.razonSocial || 'Sin razón social'}</p>
-                <p><strong>Sucursal:</strong> {p.sucursal?.direccion}, {p.sucursal?.localidad}</p>
-                <p><strong>Forma de pago:</strong> {p.formaPago}</p>
-                <p><strong>Total:</strong> ${(p.total || 0).toLocaleString('es-AR')}</p>
+                <p><strong>Sucursal:</strong> {p.sucursal ? `${p.sucursal.direccion}, ${p.sucursal.localidad}` : 'Sin sucursal'}</p>
+                {p.condicionFiscal && <p><strong>Condición fiscal:</strong> {p.condicionFiscal === 'A' ? 'Factura A' : p.condicionFiscal === 'nota_pedido' ? 'Nota de pedido' : p.condicionFiscal}</p>}
+                {(p.vendedorId || p.vendedorNombre) && <p><strong>Vendedor:</strong> {p.vendedorNombre || 'Sí'}</p>}
+                <p><strong>Total:</strong> ${formatMoneda(p.total || 0)}</p>
                 <div className="pedido-items">
                   <strong>Productos:</strong>
                   <ul>
-                    {p.items?.map((item, i) => (
-                      <li key={i}>
-                        {item.descripcion} — {item.bultos} bulto(s) × ${(item.precioPorBulto || 0).toLocaleString('es-AR')} = ${((item.bultos || 0) * (item.precioPorBulto || 0)).toLocaleString('es-AR')}
-                      </li>
-                    ))}
+                    {p.items?.map((item, i) => {
+                      const precioUnit = item.precioUnitario ?? (item.precioPorBulto ?? 0) / (item.unidadesPorBulto ?? 1)
+                      const precioBulto = item.precioPorBulto ?? precioUnit * (item.unidadesPorBulto ?? 1)
+                      return (
+                        <li key={i}>
+                          {item.descripcion} — {item.bultos} bulto(s) × $/u ${formatMoneda(precioUnit)} = ${formatMoneda((item.bultos || 0) * precioBulto)}
+                        </li>
+                      )
+                    })}
                   </ul>
                 </div>
                 {p.comprobanteUrl && (

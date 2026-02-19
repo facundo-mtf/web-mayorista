@@ -1,18 +1,58 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { collection, query, where, addDoc, onSnapshot, doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../context/AuthContext'
+import { PROVINCIAS_ARGENTINA } from '../../data/provinciasArgentina'
+import { fetchLocalidades } from '../../utils/georefApi'
+
+const CONDICIONES_FISCALES = [
+  { value: 'responsable_inscripto', label: 'Responsable inscripto' },
+  { value: 'autonomo', label: 'Autónomo' },
+  { value: 'monotributista', label: 'Monotributista' },
+  { value: 'exento', label: 'Exento' },
+  { value: 'no_alcanzado', label: 'No alcanzado' },
+]
 
 export default function Datos() {
   const { user, profile } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const fromRegister = location.state?.fromRegister === true
+
   const [razonesSociales, setRazonesSociales] = useState([])
   const [expresos, setExpresos] = useState([])
   const [activeTab, setActiveTab] = useState('razones')
-  const [formRazon, setFormRazon] = useState({ razonSocial: '', cuit: '' })
-  const [formSucursal, setFormSucursal] = useState({ razonSocialId: '', direccion: '', localidad: '', codigoPostal: '' })
+  const [formRazon, setFormRazon] = useState({
+    razonSocial: '',
+    cuit: '',
+    condicionFiscal: '',
+    calle: '',
+    numero: '',
+    localidad: '',
+    provincia: '',
+    provinciaId: '',
+    codigoPostal: '',
+  })
+  const [formSucursal, setFormSucursal] = useState({
+    razonSocialId: '',
+    razonSocial: '',
+    calle: '',
+    numero: '',
+    localidad: '',
+    provincia: '',
+    provinciaId: '',
+    codigoPostal: '',
+  })
+  const [localidadesRazon, setLocalidadesRazon] = useState([])
+  const [localidadesSucursal, setLocalidadesSucursal] = useState([])
+  const [loadingLocalRazon, setLoadingLocalRazon] = useState(false)
+  const [loadingLocalSucursal, setLoadingLocalSucursal] = useState(false)
   const [sucursalesSinRazon, setSucursalesSinRazon] = useState([])
   const [formExpreso, setFormExpreso] = useState({ nombre: '', direccionCABA: '', telefono: '' })
-  const [formContacto, setFormContacto] = useState({ nombre: '', apellido: '', telefono: '', email: '' })
+  const [mismoCompraQuePaga, setMismoCompraQuePaga] = useState(true)
+  const [formCompra, setFormCompra] = useState({ nombre: '', apellido: '', telefono: '', email: '' })
+  const [formPago, setFormPago] = useState({ nombre: '', apellido: '', telefono: '', email: '' })
   const [guardandoContacto, setGuardandoContacto] = useState(false)
   const [contactoGuardadoOk, setContactoGuardadoOk] = useState(false)
 
@@ -62,24 +102,72 @@ export default function Datos() {
   }, [user?.uid])
 
   useEffect(() => {
-    if (profile) {
-      setFormContacto({
-        nombre: profile.nombreContacto || '',
-        apellido: profile.apellidoContacto || '',
-        telefono: profile.telefonoContacto || '',
-        email: profile.emailContacto || user?.email || '',
+    if (formRazon.provinciaId) {
+      setLoadingLocalRazon(true)
+      fetchLocalidades(formRazon.provinciaId).then(locs => {
+        setLocalidadesRazon(locs)
+        setLoadingLocalRazon(false)
       })
+    } else {
+      setLocalidadesRazon([])
+    }
+  }, [formRazon.provinciaId])
+
+  useEffect(() => {
+    if (formSucursal.provinciaId) {
+      setLoadingLocalSucursal(true)
+      fetchLocalidades(formSucursal.provinciaId).then(locs => {
+        setLocalidadesSucursal(locs)
+        setLoadingLocalSucursal(false)
+      })
+    } else {
+      setLocalidadesSucursal([])
+    }
+  }, [formSucursal.provinciaId])
+
+  useEffect(() => {
+    if (profile) {
+      const compra = {
+        nombre: profile.nombreCompra ?? profile.nombreContacto ?? '',
+        apellido: profile.apellidoCompra ?? profile.apellidoContacto ?? '',
+        telefono: profile.telefonoCompra ?? profile.telefonoContacto ?? '',
+        email: profile.emailCompra ?? profile.emailContacto ?? user?.email ?? '',
+      }
+      const pago = {
+        nombre: profile.nombrePago ?? profile.nombreContacto ?? '',
+        apellido: profile.apellidoPago ?? profile.apellidoContacto ?? '',
+        telefono: profile.telefonoPago ?? profile.telefonoContacto ?? '',
+        email: profile.emailPago ?? profile.emailContacto ?? user?.email ?? '',
+      }
+      setFormCompra(compra)
+      setFormPago(pago)
+      setMismoCompraQuePaga(profile.mismoCompraQuePaga !== false)
     }
   }, [profile, user?.email])
 
+  useEffect(() => {
+    if (mismoCompraQuePaga) setFormPago({ ...formCompra })
+  }, [mismoCompraQuePaga])
+
+  const formPagoEfectivo = mismoCompraQuePaga ? formCompra : formPago
+
   const addRazon = async (e) => {
     e.preventDefault()
+    const dir = {
+      calle: formRazon.calle || null,
+      numero: formRazon.numero || null,
+      localidad: formRazon.localidad || null,
+      provincia: formRazon.provincia || null,
+      codigoPostal: formRazon.codigoPostal || null,
+    }
     await addDoc(collection(db, 'razonesSociales'), {
       userId: user.uid,
       razonSocial: formRazon.razonSocial,
       cuit: formRazon.cuit || null,
+      condicionFiscal: formRazon.condicionFiscal || null,
+      direccionFacturacion: dir,
     })
-    setFormRazon({ razonSocial: '', cuit: '' })
+    setFormRazon({ razonSocial: '', cuit: '', condicionFiscal: '', calle: '', numero: '', localidad: '', provincia: '', provinciaId: '', codigoPostal: '' })
   }
 
   const addSucursal = async (e) => {
@@ -87,11 +175,15 @@ export default function Datos() {
     await addDoc(collection(db, 'sucursales'), {
       userId: user.uid,
       razonSocialId: formSucursal.razonSocialId || null,
-      direccion: formSucursal.direccion,
+      razonSocial: formSucursal.razonSocial || null,
+      calle: formSucursal.calle,
+      numero: formSucursal.numero || null,
       localidad: formSucursal.localidad,
+      provincia: formSucursal.provincia || null,
       codigoPostal: formSucursal.codigoPostal || null,
+      direccion: `${formSucursal.calle || ''} ${formSucursal.numero || ''}`.trim() || formSucursal.calle,
     })
-    setFormSucursal({ razonSocialId: '', direccion: '', localidad: '', codigoPostal: '' })
+    setFormSucursal({ razonSocialId: '', razonSocial: '', calle: '', numero: '', localidad: '', provincia: '', provinciaId: '', codigoPostal: '' })
   }
 
   const addExpreso = async (e) => {
@@ -113,29 +205,69 @@ export default function Datos() {
     try {
       const userRef = doc(db, 'users', user.uid)
       await updateDoc(userRef, {
-        nombreContacto: formContacto.nombre || null,
-        apellidoContacto: formContacto.apellido || null,
-        telefonoContacto: formContacto.telefono || null,
-        emailContacto: formContacto.email || null,
+        nombreCompra: formCompra.nombre || null,
+        apellidoCompra: formCompra.apellido || null,
+        telefonoCompra: formCompra.telefono || null,
+        emailCompra: formCompra.email || null,
+        nombrePago: formPagoEfectivo.nombre || null,
+        apellidoPago: formPagoEfectivo.apellido || null,
+        telefonoPago: formPagoEfectivo.telefono || null,
+        emailPago: formPagoEfectivo.email || null,
+        mismoCompraQuePaga,
+        nombreContacto: formCompra.nombre || null,
+        apellidoContacto: formCompra.apellido || null,
+        telefonoContacto: formCompra.telefono || null,
+        emailContacto: formCompra.email || null,
       })
       setContactoGuardadoOk(true)
       setTimeout(() => setContactoGuardadoOk(false), 3000)
+      const completo = !!(formCompra.nombre && formCompra.apellido && formCompra.telefono && formCompra.email &&
+        formPagoEfectivo.nombre && formPagoEfectivo.apellido && formPagoEfectivo.telefono && formPagoEfectivo.email)
+      if (completo) {
+        setTimeout(() => navigate('/catalogo'), 1500)
+      }
     } finally {
       setGuardandoContacto(false)
     }
   }
 
+  const contactoCompleto = !!(
+    formCompra.nombre && formCompra.apellido && formCompra.telefono && formCompra.email &&
+    formPagoEfectivo.nombre && formPagoEfectivo.apellido && formPagoEfectivo.telefono && formPagoEfectivo.email
+  )
+
+  const formatDirFact = (r) => {
+    if (!r?.direccionFacturacion) return ''
+    const d = r.direccionFacturacion
+    const parts = [d.calle, d.numero, d.localidad, d.provincia, d.codigoPostal].filter(Boolean)
+    return parts.join(', ')
+  }
+
+  const formatSucursal = (s) => {
+    const parts = [s.calle, s.numero, s.localidad, s.provincia, s.codigoPostal].filter(Boolean)
+    if (parts.length) return parts.join(', ')
+    return s.direccion ? `${s.direccion}, ${s.localidad || ''}`.trim() : '-'
+  }
+
   return (
     <div className="container page">
       <h1 className="page-title">Datos</h1>
-      <p className="page-subtitle">Gestioná tus razones sociales, sucursales, expresos y datos de contacto.</p>
+      {fromRegister && (
+        <div className="datos-alerta-registro" role="alert">
+          Por favor completá todos los datos necesarios para poder hacer pedidos.
+        </div>
+      )}
+      {!contactoCompleto && !fromRegister && (
+        <p className="datos-prompt">Para poder realizar pedidos completá los siguientes datos.</p>
+      )}
+      <p className="page-subtitle">Gestioná tus razones sociales, sucursales de entrega, expresos y datos de contacto.</p>
 
       <div className="tabs">
         <button className={activeTab === 'razones' ? 'active' : ''} onClick={() => setActiveTab('razones')}>
           Razones sociales
         </button>
         <button className={activeTab === 'sucursales' ? 'active' : ''} onClick={() => setActiveTab('sucursales')}>
-          Sucursales
+          Sucursales de entrega
         </button>
         <button className={activeTab === 'expresos' ? 'active' : ''} onClick={() => setActiveTab('expresos')}>
           Expresos
@@ -147,23 +279,52 @@ export default function Datos() {
 
       {activeTab === 'razones' && (
         <section className="entidades-section">
-          <form onSubmit={addRazon} className="form-inline">
-            <input
-              placeholder="Razón social *"
-              value={formRazon.razonSocial}
-              onChange={(e) => setFormRazon({ ...formRazon, razonSocial: e.target.value })}
-              required
-            />
-            <input
-              placeholder="CUIT (opcional)"
-              value={formRazon.cuit}
-              onChange={(e) => setFormRazon({ ...formRazon, cuit: e.target.value })}
-            />
-            <button type="submit" className="btn btn-primary">Agregar</button>
+          <form onSubmit={addRazon} className="form-stacked datos-form-razon">
+            <h3>Agregar razón social</h3>
+            <input placeholder="Razón social *" value={formRazon.razonSocial} onChange={(e) => setFormRazon({ ...formRazon, razonSocial: e.target.value })} required />
+            <input placeholder="CUIT o CUIL" value={formRazon.cuit} onChange={(e) => setFormRazon({ ...formRazon, cuit: e.target.value })} />
+            <select value={formRazon.condicionFiscal} onChange={(e) => setFormRazon({ ...formRazon, condicionFiscal: e.target.value })}>
+              <option value="">Condición fiscal (opcional)</option>
+              {CONDICIONES_FISCALES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+            <h4>Dirección de facturación</h4>
+            <div className="form-row">
+              <input placeholder="Calle *" value={formRazon.calle} onChange={(e) => setFormRazon({ ...formRazon, calle: e.target.value })} />
+              <input placeholder="Número" value={formRazon.numero} onChange={(e) => setFormRazon({ ...formRazon, numero: e.target.value })} style={{ maxWidth: 100 }} />
+            </div>
+            <div className="form-row">
+              <select
+                value={formRazon.provinciaId}
+                onChange={(e) => {
+                  const id = e.target.value
+                  const prov = PROVINCIAS_ARGENTINA.find(p => p.id === id)
+                  setFormRazon({ ...formRazon, provinciaId: id, provincia: prov?.nombre || '', localidad: '' })
+                }}
+              >
+                <option value="">Provincia</option>
+                {PROVINCIAS_ARGENTINA.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+              <select
+                value={formRazon.localidad}
+                onChange={(e) => setFormRazon({ ...formRazon, localidad: e.target.value })}
+                disabled={!formRazon.provinciaId || loadingLocalRazon}
+                required
+              >
+                <option value="">{loadingLocalRazon ? 'Cargando...' : 'Localidad *'}</option>
+                {localidadesRazon.map(l => <option key={l.id} value={l.nombre}>{l.nombre}</option>)}
+              </select>
+              <input placeholder="Código postal" value={formRazon.codigoPostal} onChange={(e) => setFormRazon({ ...formRazon, codigoPostal: e.target.value })} style={{ maxWidth: 120 }} />
+            </div>
+            <button type="submit" className="btn btn-primary">Agregar razón social</button>
           </form>
           <ul className="entidades-list">
             {razonesSociales.map(r => (
-              <li key={r.id}><strong>{r.razonSocial}</strong> {r.cuit ? `— CUIT: ${r.cuit}` : ''}</li>
+              <li key={r.id}>
+                <strong>{r.razonSocial}</strong>
+                {r.cuit && ` — CUIT: ${r.cuit}`}
+                {r.condicionFiscal && ` — ${CONDICIONES_FISCALES.find(c => c.value === r.condicionFiscal)?.label || r.condicionFiscal}`}
+                {formatDirFact(r) && ` — ${formatDirFact(r)}`}
+              </li>
             ))}
           </ul>
         </section>
@@ -171,28 +332,50 @@ export default function Datos() {
 
       {activeTab === 'sucursales' && (
         <section className="entidades-section">
-          <form onSubmit={addSucursal} className="form-stacked">
-            <select
-              value={formSucursal.razonSocialId}
-              onChange={(e) => setFormSucursal({ ...formSucursal, razonSocialId: e.target.value })}
-            >
+          <form onSubmit={addSucursal} className="form-stacked datos-form-sucursal">
+            <h3>Agregar sucursal o domicilio de entrega</h3>
+            <select value={formSucursal.razonSocialId} onChange={(e) => {
+                const rid = e.target.value
+                const r = rid ? razonesSociales.find(x => x.id === rid) : null
+                setFormSucursal({ ...formSucursal, razonSocialId: rid, razonSocial: r?.razonSocial || '' })
+              }}>
               <option value="">Sin razón social</option>
               {razonesSociales.map(r => <option key={r.id} value={r.id}>{r.razonSocial}</option>)}
             </select>
-            <input placeholder="Dirección *" value={formSucursal.direccion} onChange={(e) => setFormSucursal({ ...formSucursal, direccion: e.target.value })} required />
-            <input placeholder="Localidad *" value={formSucursal.localidad} onChange={(e) => setFormSucursal({ ...formSucursal, localidad: e.target.value })} required />
-            <input placeholder="CP" value={formSucursal.codigoPostal} onChange={(e) => setFormSucursal({ ...formSucursal, codigoPostal: e.target.value })} />
+            <input placeholder="Calle *" value={formSucursal.calle} onChange={(e) => setFormSucursal({ ...formSucursal, calle: e.target.value })} required />
+            <input placeholder="Número" value={formSucursal.numero} onChange={(e) => setFormSucursal({ ...formSucursal, numero: e.target.value })} style={{ maxWidth: 100 }} />
+            <select
+              value={formSucursal.provinciaId}
+              onChange={(e) => {
+                const id = e.target.value
+                const prov = PROVINCIAS_ARGENTINA.find(p => p.id === id)
+                setFormSucursal({ ...formSucursal, provinciaId: id, provincia: prov?.nombre || '', localidad: '' })
+              }}
+            >
+              <option value="">Provincia</option>
+              {PROVINCIAS_ARGENTINA.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+            <select
+              value={formSucursal.localidad}
+              onChange={(e) => setFormSucursal({ ...formSucursal, localidad: e.target.value })}
+              disabled={!formSucursal.provinciaId || loadingLocalSucursal}
+              required
+            >
+              <option value="">{loadingLocalSucursal ? 'Cargando...' : 'Localidad *'}</option>
+              {localidadesSucursal.map(l => <option key={l.id} value={l.nombre}>{l.nombre}</option>)}
+            </select>
+            <input placeholder="Código postal" value={formSucursal.codigoPostal} onChange={(e) => setFormSucursal({ ...formSucursal, codigoPostal: e.target.value })} />
             <button type="submit" className="btn btn-primary">Agregar sucursal</button>
           </form>
           <ul className="entidades-list">
             {sucursalesSinRazon.map(s => (
-              <li key={s.id}><em>Sin razón social</em> — {s.direccion}, {s.localidad}</li>
+              <li key={s.id}><em>Sin razón social</em> — {formatSucursal(s)}</li>
             ))}
             {sucursales.map(s => {
               const razon = razonesSociales.find(r => r.id === s.razonSocialId)
               return (
                 <li key={s.id}>
-                  <strong>{razon?.razonSocial}</strong> — {s.direccion}, {s.localidad}
+                  <strong>{razon?.razonSocial || s.razonSocial || 'Sin razón'}</strong> — {formatSucursal(s)}
                 </li>
               )
             })}
@@ -219,34 +402,33 @@ export default function Datos() {
       {activeTab === 'contacto' && (
         <section className="entidades-section">
           <form onSubmit={guardarContacto} className="form-stacked">
-            <input
-              placeholder="Nombre *"
-              value={formContacto.nombre}
-              onChange={(e) => setFormContacto({ ...formContacto, nombre: e.target.value })}
-            />
-            <input
-              placeholder="Apellido *"
-              value={formContacto.apellido}
-              onChange={(e) => setFormContacto({ ...formContacto, apellido: e.target.value })}
-            />
-            <input
-              type="tel"
-              placeholder="Teléfono"
-              value={formContacto.telefono}
-              onChange={(e) => setFormContacto({ ...formContacto, telefono: e.target.value })}
-            />
-            <input
-              type="email"
-              placeholder="Email"
-              value={formContacto.email}
-              onChange={(e) => setFormContacto({ ...formContacto, email: e.target.value })}
-            />
+            <label className="checkbox-label datos-checkbox-mismo">
+              <input type="checkbox" checked={mismoCompraQuePaga} onChange={(e) => setMismoCompraQuePaga(e.target.checked)} />
+              ¿Es la misma persona quien compra y quien paga?
+            </label>
+
+            <div className="datos-contacto-grid">
+              <div className="datos-contacto-block">
+                <h4>Datos de quien compra</h4>
+                <input placeholder="Nombre *" value={formCompra.nombre} onChange={(e) => setFormCompra({ ...formCompra, nombre: e.target.value })} />
+                <input placeholder="Apellido *" value={formCompra.apellido} onChange={(e) => setFormCompra({ ...formCompra, apellido: e.target.value })} />
+                <input type="tel" placeholder="Teléfono WhatsApp *" value={formCompra.telefono} onChange={(e) => setFormCompra({ ...formCompra, telefono: e.target.value })} />
+                <input type="email" placeholder="Email *" value={formCompra.email} onChange={(e) => setFormCompra({ ...formCompra, email: e.target.value })} />
+              </div>
+              <div className="datos-contacto-block">
+                <h4>Datos de quien paga</h4>
+                <input placeholder="Nombre *" value={formPagoEfectivo.nombre} onChange={(e) => setFormPago({ ...formPago, nombre: e.target.value })} disabled={mismoCompraQuePaga} />
+                <input placeholder="Apellido *" value={formPagoEfectivo.apellido} onChange={(e) => setFormPago({ ...formPago, apellido: e.target.value })} disabled={mismoCompraQuePaga} />
+                <input type="tel" placeholder="Teléfono WhatsApp *" value={formPagoEfectivo.telefono} onChange={(e) => setFormPago({ ...formPago, telefono: e.target.value })} disabled={mismoCompraQuePaga} />
+                <input type="email" placeholder="Email *" value={formPagoEfectivo.email} onChange={(e) => setFormPago({ ...formPago, email: e.target.value })} disabled={mismoCompraQuePaga} />
+              </div>
+            </div>
+
             <button type="submit" className="btn btn-primary" disabled={guardandoContacto}>
               {guardandoContacto ? 'Guardando...' : 'Guardar datos de contacto'}
             </button>
             {contactoGuardadoOk && <p className="hint success">Datos guardados</p>}
           </form>
-          <p className="hint">Estos datos se usan para contactarte respecto a tus pedidos.</p>
         </section>
       )}
     </div>

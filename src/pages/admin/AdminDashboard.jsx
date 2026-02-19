@@ -1,20 +1,41 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import { useAuth } from '../../context/AuthContext'
 
 export default function AdminDashboard() {
-  const [pendientes, setPendientes] = useState(0)
+  const { user } = useAuth()
+  const [nuevosClientes, setNuevosClientes] = useState(0)
+  const [lastViewedUsuariosAt, setLastViewedUsuariosAt] = useState(null)
   const [pedidosHoy, setPedidosHoy] = useState(0)
   const [vendedoresCount, setVendedoresCount] = useState(0)
 
   useEffect(() => {
+    if (!user?.uid) return
+    const unsub = onSnapshot(doc(db, 'adminConfig', user.uid), (snap) => {
+      const at = snap.exists() ? snap.data().lastViewedUsuariosAt : null
+      setLastViewedUsuariosAt(at?.toDate?.() ?? null)
+    })
+    return () => unsub()
+  }, [user?.uid])
+
+  useEffect(() => {
     const unsub = onSnapshot(
       query(collection(db, 'users'), where('approved', '==', false), where('role', '==', 'cliente')),
-      (snap) => setPendientes(snap.size)
+      (snap) => {
+        const pendientes = snap.docs
+          .map(d => ({ ...d.data(), id: d.id }))
+          .filter(u => !u.deleted)
+        const since = lastViewedUsuariosAt ? new Date(lastViewedUsuariosAt) : null
+        const count = since
+          ? pendientes.filter(u => u.createdAt?.toDate?.() > since).length
+          : pendientes.length
+        setNuevosClientes(count)
+      }
     )
     return () => unsub()
-  }, [])
+  }, [lastViewedUsuariosAt])
 
   useEffect(() => {
     const hoy = new Date()
@@ -36,8 +57,8 @@ export default function AdminDashboard() {
       <h1 className="page-title">Panel de administración</h1>
       <div className="dashboard-cards admin-cards">
         <div className="card">
-          <h3>{pendientes}</h3>
-          <p>Usuarios pendientes de aprobar</p>
+          <h3>{nuevosClientes}</h3>
+          <p>Nuevos clientes</p>
           <Link to="/admin/usuarios" className="btn btn-primary btn-sm">Ver usuarios</Link>
         </div>
         <div className="card">

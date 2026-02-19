@@ -1,7 +1,9 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged } from 'firebase/auth'
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from '../firebase/config'
+
+const INACTIVITY_MS = 60 * 60 * 1000
 
 const AuthContext = createContext(null)
 
@@ -9,6 +11,25 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const inactivityTimerRef = useRef(null)
+
+  useEffect(() => {
+    if (!user) return
+    const resetTimer = () => {
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current)
+      inactivityTimerRef.current = setTimeout(() => {
+        signOut(auth)
+        if (typeof window !== 'undefined') window.location.href = '/login?reason=timeout'
+      }, INACTIVITY_MS)
+    }
+    resetTimer()
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart']
+    events.forEach(ev => window.addEventListener(ev, resetTimer))
+    return () => {
+      events.forEach(ev => window.removeEventListener(ev, resetTimer))
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current)
+    }
+  }, [user])
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -23,7 +44,19 @@ export function AuthProvider({ children }) {
       const unsubProfile = onSnapshot(
         doc(db, 'users', firebaseUser.uid),
         (snap) => {
-          setProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+          const data = snap.exists() ? { id: snap.id, ...snap.data() } : null
+          if (data?.blocked === true || data?.deleted === true) {
+            signOut(auth)
+            setUser(null)
+            setProfile(null)
+            setLoading(false)
+            if (typeof window !== 'undefined') {
+              const reason = data?.deleted ? 'deleted' : 'blocked'
+              window.location.href = `/login?reason=${reason}`
+            }
+            return
+          }
+          setProfile(data)
           setLoading(false)
         },
         () => {
@@ -42,7 +75,8 @@ export function AuthProvider({ children }) {
     profile,
     loading,
     isAdmin: profile?.role === 'admin',
-    isApproved: profile?.approved === true,
+    isApproved: profile?.approved === true && !profile?.deleted,
+    isDeleted: profile?.deleted === true,
   }
 
   return (

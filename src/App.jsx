@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { auth } from './firebase/config'
 import { useAuth } from './context/AuthContext'
+import { CarritoProvider } from './context/CarritoContext'
 
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -19,8 +20,9 @@ import AdminPedidoDetalle from './pages/admin/AdminPedidoDetalle'
 import AdminUsuarioDetalle from './pages/admin/AdminUsuarioDetalle'
 import AdminStock from './pages/admin/AdminStock'
 import AdminVendedores from './pages/admin/AdminVendedores'
+import AdminOfertas from './pages/admin/AdminOfertas'
 
-function ProtectedRoute({ children, requireAdmin, requireApproved }) {
+function ProtectedRoute({ children, requireAdmin }) {
   const { user, profile, loading } = useAuth()
 
   if (loading) {
@@ -33,28 +35,10 @@ function ProtectedRoute({ children, requireAdmin, requireApproved }) {
   }
 
   if (!user) return <Navigate to="/login" replace />
+  if (profile?.deleted) return <Navigate to="/login?reason=deleted" replace />
   if (requireAdmin && profile?.role !== 'admin') return <Navigate to="/" replace />
-  if (requireApproved && !requireAdmin && profile?.role === 'cliente' && !profile?.approved) {
-    return <Navigate to="/pendiente" replace />
-  }
 
   return children
-}
-
-function PendingApproval() {
-  const navigate = useNavigate()
-  const handleLogout = () => {
-    signOut(auth)
-    navigate('/login')
-  }
-  return (
-    <div className="pending-screen">
-      <h1>Cuenta pendiente de aprobación</h1>
-      <p>Un administrador debe aprobar tu cuenta para acceder al catálogo y realizar pedidos.</p>
-      <p className="muted">Recibirás un aviso cuando tu cuenta esté activa.</p>
-      <button onClick={handleLogout} className="btn btn-secondary">Cerrar sesión</button>
-    </div>
-  )
 }
 
 export default function App() {
@@ -62,42 +46,19 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/registro" element={<Register />} />
-      <Route path="/pendiente" element={
-        <ProtectedRoute>
-          <PendingApproval />
-        </ProtectedRoute>
-      } />
 
       <Route path="/" element={
         <ProtectedRoute>
-          <Layout />
+          <CarritoProvider>
+            <Layout />
+          </CarritoProvider>
         </ProtectedRoute>
       }>
-        <Route index element={
-          <ProtectedRoute requireApproved>
-            <Dashboard />
-          </ProtectedRoute>
-        } />
-        <Route path="catalogo" element={
-          <ProtectedRoute requireApproved>
-            <Catalogo />
-          </ProtectedRoute>
-        } />
-        <Route path="checkout" element={
-          <ProtectedRoute requireApproved>
-            <Checkout />
-          </ProtectedRoute>
-        } />
-        <Route path="datos" element={
-          <ProtectedRoute requireApproved>
-            <Datos />
-          </ProtectedRoute>
-        } />
-        <Route path="mis-pedidos" element={
-          <ProtectedRoute requireApproved>
-            <MisPedidos />
-          </ProtectedRoute>
-        } />
+        <Route index element={<Dashboard />} />
+        <Route path="catalogo" element={<Catalogo />} />
+        <Route path="checkout" element={<Checkout />} />
+        <Route path="datos" element={<Datos />} />
+        <Route path="mis-pedidos" element={<MisPedidos />} />
       </Route>
 
       <Route path="/admin" element={
@@ -111,6 +72,7 @@ export default function App() {
         <Route path="pedidos" element={<AdminPedidos />} />
         <Route path="pedidos/:id" element={<AdminPedidoDetalle />} />
         <Route path="catalogo" element={<AdminStock />} />
+        <Route path="ofertas" element={<AdminOfertas />} />
         <Route path="vendedores" element={<AdminVendedores />} />
       </Route>
 

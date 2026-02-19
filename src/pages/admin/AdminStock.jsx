@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import imageCompression from 'browser-image-compression'
-import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, orderBy, writeBatch } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
+import { formatMoneda } from '../../utils/formatoNumero'
 
 const OPCIONES_COMPRESION = { maxSizeMB: 0.3, maxWidthOrHeight: 1200 }
 import { useAuth } from '../../context/AuthContext'
@@ -11,6 +12,9 @@ import ImportarExcel from '../../components/ImportarExcel'
 export default function AdminCatalogo() {
   const { user } = useAuth()
   const [productos, setProductos] = useState([])
+  const [categorias, setCategorias] = useState([])
+  const [nuevaCategoria, setNuevaCategoria] = useState('')
+  const [guardandoCat, setGuardandoCat] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [catalogoActivo, setCatalogoActivo] = useState('polesie')
   const catalogos = [{ id: 'polesie', label: 'Polesie' }, { id: 'luni', label: 'LUNI' }]
@@ -22,9 +26,13 @@ export default function AdminCatalogo() {
     presentacion: '',
     precioUnitario: '',
     unidadesPorBulto: '',
+    categoriaId: '',
   })
   const [editando, setEditando] = useState(null)
   const [guardando, setGuardando] = useState(false)
+  const [arrastrando, setArrastrando] = useState(null)
+  const [reordenando, setReordenando] = useState(false)
+  const [dropTargetIdx, setDropTargetIdx] = useState(null)
   const [editForm, setEditForm] = useState({
     descripcion: '',
     sku: '',
@@ -34,6 +42,7 @@ export default function AdminCatalogo() {
     presentacion: '',
     precioUnitario: '',
     unidadesPorBulto: '',
+    categoriaId: '',
   })
 
   useEffect(() => {
@@ -42,6 +51,39 @@ export default function AdminCatalogo() {
     })
     return () => unsub()
   }, [])
+
+  useEffect(() => {
+    const q = query(collection(db, 'categorias'), orderBy('orden', 'asc'))
+    const unsub = onSnapshot(q, (snap) => {
+      setCategorias(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return () => unsub()
+  }, [])
+
+  const agregarCategoria = async (e) => {
+    e?.preventDefault?.()
+    const nombre = (nuevaCategoria || '').trim()
+    if (!nombre) return
+    setGuardandoCat(true)
+    try {
+      const maxOrden = categorias.length > 0 ? Math.max(...categorias.map(c => c.orden ?? 0)) : 0
+      await addDoc(collection(db, 'categorias'), { nombre, orden: maxOrden + 1 })
+      setNuevaCategoria('')
+    } finally {
+      setGuardandoCat(false)
+    }
+  }
+
+  const eliminarCategoria = async (catId) => {
+    if (!confirm('¿Eliminar esta categoría? Los productos quedarán sin categoría.')) return
+    const batch = writeBatch(db)
+    const productosConCat = productos.filter(p => p.categoriaId === catId)
+    for (const p of productosConCat) {
+      batch.update(doc(db, 'productos', p.id), { categoriaId: null })
+    }
+    batch.delete(doc(db, 'categorias', catId))
+    await batch.commit()
+  }
 
   const subirImagen = async (file, index = 0) => {
     if (!file || !user) return null
@@ -69,6 +111,8 @@ export default function AdminCatalogo() {
     const files = form.imagenFiles || []
     const imagenes = (await Promise.all(files.map((f, i) => subirImagen(f, i)))).filter(Boolean)
 
+    const productosCat = productos.filter(p => (p.catalogo || 'polesie') === catalogoActivo)
+    const maxOrden = productosCat.length > 0 ? Math.max(...productosCat.map(p => p.orden ?? 0), 0) : 0
     await addDoc(collection(db, 'productos'), {
       descripcion: form.descripcion,
       sku: form.sku || null,
@@ -81,8 +125,10 @@ export default function AdminCatalogo() {
       precioPorBulto,
       activo: true,
       catalogo: catalogoActivo,
+      categoriaId: form.categoriaId || null,
+      orden: maxOrden + 1,
     })
-    setForm({ descripcion: '', sku: '', imagenFiles: [], dimensiones: '', presentacion: '', precioUnitario: '', unidadesPorBulto: '' })
+    setForm({ descripcion: '', sku: '', imagenFiles: [], dimensiones: '', presentacion: '', precioUnitario: '', unidadesPorBulto: '', categoriaId: '' })
     } finally {
       setGuardando(false)
     }
@@ -100,6 +146,7 @@ export default function AdminCatalogo() {
       presentacion: String(p.presentacion ?? ''),
       precioUnitario: String(p.precioUnitario ?? ''),
       unidadesPorBulto: String(p.unidadesPorBulto ?? '1'),
+      categoriaId: p.categoriaId || '',
     })
   }
 
@@ -127,6 +174,7 @@ export default function AdminCatalogo() {
       unidadesPorBulto,
       precioPorBulto,
       catalogo: catalogoActivo,
+      categoriaId: editForm.categoriaId || null,
     })
     setEditando(null)
     } finally {
@@ -166,7 +214,40 @@ export default function AdminCatalogo() {
     })
   }
 
-  const productosVisibles = filtrarProductos()
+  const ordenarPorCategoriaYOrden = (list) => {
+    const mapOrden = Object.fromEntries(categorias.map((c, i) => [c.id, i]))
+    return [...list].sort((a, b) => {
+      const ordA = a.orden ?? 999999
+      const ordB = b.orden ?? 999999
+      if (ordA !== ordB) return ordA - ordB
+      const ordCatA = a.categoriaId != null ? (mapOrden[a.categoriaId] ?? 9999) : 9999
+      const ordCatB = b.categoriaId != null ? (mapOrden[b.categoriaId] ?? 9999) : 9999
+      if (ordCatA !== ordCatB) return ordCatA - ordCatB
+      return (a.descripcion ?? '').localeCompare(b.descripcion ?? '')
+    })
+  }
+
+  const catalogOrdenados = ordenarPorCategoriaYOrden(productosDelCatalogo)
+  const productosVisibles = busqueda.trim()
+    ? ordenarPorCategoriaYOrden(filtrarProductos())
+    : catalogOrdenados
+
+  const handleDragOver = (e, idx) => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'move'
+    if (typeof idx === 'number') setDropTargetIdx(idx)
+  }
+
+  const handleDragLeave = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDropTargetIdx(null)
+    }
+  }
+
+  const handleDragEnd = () => {
+    setArrastrando(null)
+  }
 
   const quitarImagenAdd = (index) => {
     setForm(f => ({ ...f, imagenFiles: (f.imagenFiles || []).filter((_, i) => i !== index) }))
@@ -193,6 +274,33 @@ export default function AdminCatalogo() {
           </button>
         ))}
       </div>
+
+      <section className="admin-section">
+        <div className="admin-section-header">
+          <h2>Categorías</h2>
+        </div>
+        <form onSubmit={agregarCategoria} className="form-inline flex-wrap" style={{ marginBottom: '1rem' }}>
+          <input
+            placeholder="Nueva categoría"
+            value={nuevaCategoria}
+            onChange={(e) => setNuevaCategoria(e.target.value)}
+            style={{ width: 200 }}
+          />
+          <button type="submit" className="btn btn-primary" disabled={guardandoCat || !nuevaCategoria.trim()}>
+            {guardandoCat ? '...' : 'Agregar categoría'}
+          </button>
+        </form>
+        {categorias.length > 0 && (
+          <div className="categorias-lista">
+            {categorias.map(c => (
+              <span key={c.id} className="badge-categoria">
+                {c.nombre}
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => eliminarCategoria(c.id)} title="Eliminar">×</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="admin-section">
         <div className="admin-section-header">
@@ -231,6 +339,10 @@ export default function AdminCatalogo() {
           <input placeholder="Presentación" value={form.presentacion} onChange={(e) => setForm({ ...form, presentacion: e.target.value })} />
           <input type="number" placeholder="Precio unitario *" value={form.precioUnitario} onChange={(e) => setForm({ ...form, precioUnitario: e.target.value })} required />
           <input type="number" placeholder="Unidades por bulto" value={form.unidadesPorBulto} onChange={(e) => setForm({ ...form, unidadesPorBulto: e.target.value })} min="1" />
+          <select value={form.categoriaId} onChange={(e) => setForm({ ...form, categoriaId: e.target.value })} style={{ minWidth: 140 }}>
+            <option value="">Sin categoría</option>
+            {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
           <button type="submit" className="btn btn-primary" disabled={guardando}>{guardando ? 'Subiendo fotos...' : 'Agregar'}</button>
         </form>
       </section>
@@ -238,6 +350,7 @@ export default function AdminCatalogo() {
       <section className="admin-section">
         <div className="admin-section-header">
           <h2>Productos ({productosVisibles.length}{busqueda ? ` de ${productosDelCatalogo.length}` : ''})</h2>
+          <span className="hint" style={{ marginLeft: '0.5rem', fontWeight: 'normal' }}>Arrastrá las filas para cambiar el orden</span>
           <input
             type="search"
             placeholder="Buscar por descripción, SKU o palabras clave..."
@@ -251,8 +364,10 @@ export default function AdminCatalogo() {
           <table className="admin-table">
             <thead>
               <tr>
+                <th style={{ width: 32 }}></th>
                 <th>Descripción</th>
                 <th>SKU</th>
+                <th>Categoría</th>
                 <th>Imagen</th>
                 <th>Dimensiones</th>
                 <th>Presentación</th>
@@ -262,11 +377,56 @@ export default function AdminCatalogo() {
                 <th>Acciones</th>
               </tr>
             </thead>
-            <tbody>
-              {productosVisibles.map(p => {
+            <tbody onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}>
+              {productosVisibles.map((p, idx) => {
                 const precioPorBulto = p.precioPorBulto ?? (p.precioUnitario ?? 0) * (p.unidadesPorBulto ?? 1)
+                const isDragging = arrastrando === p.id
                 return (
-                  <tr key={p.id}>
+                  <tr
+                    key={p.id}
+                    data-row-index={idx}
+                    draggable={!editando && !reordenando}
+                    onDragStart={(e) => {
+                      if (!editando && !reordenando) {
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData('text/plain', p.id)
+                        setArrastrando(p.id)
+                      }
+                    }}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const productId = e.dataTransfer.getData('text/plain')
+                      if (!productId || reordenando) return
+                      const dropTarget = productosVisibles[idx]
+                      if (!dropTarget || dropTarget.id === productId) return
+                      setArrastrando(null)
+                      setDropTargetIdx(null)
+                      setReordenando(true)
+                      const catalogList = [...catalogOrdenados]
+                      const fromIdx = catalogList.findIndex(x => x.id === productId)
+                      if (fromIdx === -1) { setReordenando(false); return }
+                      const toIdx = catalogList.findIndex(x => x.id === dropTarget.id)
+                      if (toIdx === -1) { setReordenando(false); return }
+                      const [removed] = catalogList.splice(fromIdx, 1)
+                      catalogList.splice(toIdx, 0, removed)
+                      const batch = writeBatch(db)
+                      catalogList.forEach((prod, i) => {
+                        batch.update(doc(db, 'productos', prod.id), { orden: i })
+                      })
+                      batch.commit().catch(err => {
+                        console.error('Error al reordenar:', err)
+                        alert('Error al guardar el nuevo orden.')
+                      }).finally(() => setReordenando(false))
+                    }}
+                    onDragEnd={handleDragEnd}
+                    className={`admin-producto-row ${isDragging ? 'admin-row-dragging' : ''} ${dropTargetIdx === idx ? 'admin-row-drop-target' : ''}`}
+                  >
+                    <td className="admin-drag-handle" title="Arrastrar para reordenar">
+                      {!editando && <span className="drag-handle-icon">⋮⋮</span>}
+                    </td>
                     <td>
                       {editando === p.id ? (
                         <input value={editForm.descripcion} onChange={(e) => setEditForm({ ...editForm, descripcion: e.target.value })} style={{ width: 140 }} />
@@ -279,6 +439,16 @@ export default function AdminCatalogo() {
                         <input value={editForm.sku} onChange={(e) => setEditForm({ ...editForm, sku: e.target.value })} style={{ width: 80 }} />
                       ) : (
                         p.sku ?? '-'
+                      )}
+                    </td>
+                    <td>
+                      {editando === p.id ? (
+                        <select value={editForm.categoriaId} onChange={(e) => setEditForm({ ...editForm, categoriaId: e.target.value })} style={{ minWidth: 120 }}>
+                          <option value="">Sin categoría</option>
+                          {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                        </select>
+                      ) : (
+                        categorias.find(c => c.id === p.categoriaId)?.nombre ?? '-'
                       )}
                     </td>
                     <td>
@@ -343,7 +513,7 @@ export default function AdminCatalogo() {
                       {editando === p.id ? (
                         <input type="number" value={editForm.precioUnitario} onChange={(e) => setEditForm({ ...editForm, precioUnitario: e.target.value })} style={{ width: 80 }} />
                       ) : (
-                        `$${(p.precioUnitario ?? 0).toLocaleString('es-AR')}`
+                        `$${formatMoneda(p.precioUnitario ?? 0)}`
                       )}
                     </td>
                     <td>
@@ -353,7 +523,7 @@ export default function AdminCatalogo() {
                         p.unidadesPorBulto ?? 1
                       )}
                     </td>
-                    <td>${precioPorBulto.toLocaleString('es-AR')}</td>
+                    <td>${formatMoneda(precioPorBulto)}</td>
                     <td>
                       {editando === p.id ? (
                         <div className="acciones-cell">

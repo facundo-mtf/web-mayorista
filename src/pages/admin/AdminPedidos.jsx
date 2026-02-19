@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { exportarTodosPedidosExcel } from '../../utils/exportarPedido'
+import { formatMoneda } from '../../utils/formatoNumero'
 
 export default function AdminPedidos() {
   const navigate = useNavigate()
@@ -51,13 +52,12 @@ export default function AdminPedidos() {
               <div className="pedido-header">
                 <span>#{p.numeroPedido ?? p.id.slice(-6)}</span>
                 <span>{formatDate(p.createdAt)}</span>
-                <span>{p.estado || 'pendiente'}</span>
               </div>
               <div className="pedido-body">
                 <p><strong>Razón social:</strong> {p.razonSocial?.razonSocial || 'Sin razón social'}</p>
                 <p><strong>Sucursal:</strong> {p.sucursal ? `${p.sucursal.direccion}, ${p.sucursal.localidad}` : 'Sin sucursal'}</p>
                 <p><strong>Forma de pago:</strong> {p.formaPago}</p>
-                <p><strong>Total:</strong> ${(p.total || 0).toLocaleString('es-AR')}</p>
+                <p><strong>Total:</strong> ${formatMoneda(p.total || 0)}</p>
               </div>
             </button>
           ))}

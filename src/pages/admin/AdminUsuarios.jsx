@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore'
+import { collection, onSnapshot, doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import { useAuth } from '../../context/AuthContext'
 
 export default function AdminUsuarios() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [usuarios, setUsuarios] = useState([])
   const [vendedores, setVendedores] = useState([])
   const [editando, setEditando] = useState(null)
@@ -20,18 +22,25 @@ export default function AdminUsuarios() {
   }, [])
 
   useEffect(() => {
+    if (!user?.uid) return
+    setDoc(doc(db, 'adminConfig', user.uid), { lastViewedUsuariosAt: serverTimestamp() }, { merge: true })
+  }, [user?.uid])
+
+  useEffect(() => {
     const unsub = onSnapshot(collection(db, 'vendedores'), (snap) => {
       setVendedores(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     })
     return () => unsub()
   }, [])
 
-  const clientes = usuarios.filter(u => u.role === 'cliente')
-  const pendientes = clientes.filter(u => !u.approved)
+  const clientes = usuarios.filter(u => u.role === 'cliente' && !u.deleted)
+  const pendientes = clientes.filter(u => !u.approved && !u.blocked)
   const aprobados = clientes.filter(u => u.approved)
+  const bloqueados = clientes.filter(u => u.blocked)
 
   const usuariosFiltrados = filtro === 'pendientes' ? pendientes
     : filtro === 'aprobados' ? aprobados
+    : filtro === 'bloqueados' ? bloqueados
     : clientes
 
   const aprobar = async (e, uid) => {
@@ -71,6 +80,9 @@ export default function AdminUsuarios() {
         <button className={filtro === 'aprobados' ? 'active' : ''} onClick={() => setFiltro('aprobados')}>
           Aprobados ({aprobados.length})
         </button>
+        <button className={filtro === 'bloqueados' ? 'active' : ''} onClick={() => setFiltro('bloqueados')}>
+          Bloqueados ({bloqueados.length})
+        </button>
       </div>
 
       <div className="table-wrap">
@@ -93,7 +105,7 @@ export default function AdminUsuarios() {
                 <td>{u.nombreEmpresa}</td>
                 <td>{u.rubro}</td>
                 <td>
-                  {u.approved ? <span className="badge badge-ok">Aprobado</span> : <span className="badge badge-pending">Pendiente</span>}
+                  {u.blocked ? <span className="badge badge-danger">Bloqueado</span> : u.approved ? <span className="badge badge-ok">Aprobado</span> : <span className="badge badge-pending">Pendiente</span>}
                 </td>
                 <td>
                   {editando === u.id ? (

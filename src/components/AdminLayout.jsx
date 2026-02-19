@@ -24,18 +24,15 @@ export default function AdminLayout() {
             <Link to="/admin/usuarios">Usuarios</Link>
             <Link to="/admin/pedidos">Pedidos</Link>
             <Link to="/admin/catalogo">Catálogo</Link>
+            <Link to="/admin/ofertas">Ofertas</Link>
             <Link to="/admin/vendedores">Vendedores</Link>
             <Link to="/">Ver sitio</Link>
             <button onClick={handleLogout} className="btn btn-ghost btn-sm">Salir</button>
           </nav>
         </div>
       </header>
-      <main className="main admin-main-with-watermark">
-        <div className="admin-watermark admin-watermark-luni" aria-hidden="true" />
-        <div className="admin-watermark admin-watermark-polesie" aria-hidden="true" />
-        <div className="admin-content">
-          <Outlet />
-        </div>
+      <main className="main">
+        <Outlet />
       </main>
     </div>
   )
