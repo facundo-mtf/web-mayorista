@@ -4,6 +4,7 @@ import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, order
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { formatMoneda } from '../../utils/formatoNumero'
+import { notificarTodosLosClientes } from '../../utils/notificaciones'
 
 const OPCIONES_COMPRESION = { maxSizeMB: 0.3, maxWidthOrHeight: 1200 }
 import { useAuth } from '../../context/AuthContext'
@@ -129,6 +130,7 @@ export default function AdminCatalogo() {
       orden: maxOrden + 1,
     })
     setForm({ descripcion: '', sku: '', imagenFiles: [], dimensiones: '', presentacion: '', precioUnitario: '', unidadesPorBulto: '', categoriaId: '' })
+    notificarTodosLosClientes('Nuevo producto', 'Hay un nuevo producto en el catálogo.').catch(() => {})
     } finally {
       setGuardando(false)
     }

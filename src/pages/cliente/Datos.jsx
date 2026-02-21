@@ -55,6 +55,9 @@ export default function Datos() {
   const [formPago, setFormPago] = useState({ nombre: '', apellido: '', telefono: '', email: '' })
   const [guardandoContacto, setGuardandoContacto] = useState(false)
   const [contactoGuardadoOk, setContactoGuardadoOk] = useState(false)
+  const [editRazonId, setEditRazonId] = useState(null)
+  const [editSucursalId, setEditSucursalId] = useState(null)
+  const [editExpresoId, setEditExpresoId] = useState(null)
 
   useEffect(() => {
     if (!user) return
@@ -160,19 +163,41 @@ export default function Datos() {
       provincia: formRazon.provincia || null,
       codigoPostal: formRazon.codigoPostal || null,
     }
-    await addDoc(collection(db, 'razonesSociales'), {
+    const payload = {
       userId: user.uid,
       razonSocial: formRazon.razonSocial,
       cuit: formRazon.cuit || null,
       condicionFiscal: formRazon.condicionFiscal || null,
       direccionFacturacion: dir,
-    })
+    }
+    if (editRazonId) {
+      await updateDoc(doc(db, 'razonesSociales', editRazonId), payload)
+      setEditRazonId(null)
+    } else {
+      await addDoc(collection(db, 'razonesSociales'), payload)
+    }
     setFormRazon({ razonSocial: '', cuit: '', condicionFiscal: '', calle: '', numero: '', localidad: '', provincia: '', provinciaId: '', codigoPostal: '' })
+  }
+
+  const cargarRazonParaEditar = (r) => {
+    const d = r.direccionFacturacion || {}
+    setFormRazon({
+      razonSocial: r.razonSocial || '',
+      cuit: r.cuit || '',
+      condicionFiscal: r.condicionFiscal || '',
+      calle: d.calle || '',
+      numero: d.numero || '',
+      localidad: d.localidad || '',
+      provincia: d.provincia || '',
+      provinciaId: PROVINCIAS_ARGENTINA.find(p => p.nombre === d.provincia)?.id || '',
+      codigoPostal: d.codigoPostal || '',
+    })
+    setEditRazonId(r.id)
   }
 
   const addSucursal = async (e) => {
     e.preventDefault()
-    await addDoc(collection(db, 'sucursales'), {
+    const payload = {
       userId: user.uid,
       razonSocialId: formSucursal.razonSocialId || null,
       razonSocial: formSucursal.razonSocial || null,
@@ -182,19 +207,55 @@ export default function Datos() {
       provincia: formSucursal.provincia || null,
       codigoPostal: formSucursal.codigoPostal || null,
       direccion: `${formSucursal.calle || ''} ${formSucursal.numero || ''}`.trim() || formSucursal.calle,
-    })
+    }
+    if (editSucursalId) {
+      await updateDoc(doc(db, 'sucursales', editSucursalId), payload)
+      setEditSucursalId(null)
+    } else {
+      await addDoc(collection(db, 'sucursales'), payload)
+    }
     setFormSucursal({ razonSocialId: '', razonSocial: '', calle: '', numero: '', localidad: '', provincia: '', provinciaId: '', codigoPostal: '' })
+  }
+
+  const cargarSucursalParaEditar = (s) => {
+    const r = razonesSociales.find(x => x.id === s.razonSocialId)
+    setFormSucursal({
+      razonSocialId: s.razonSocialId || '',
+      razonSocial: r?.razonSocial || s.razonSocial || '',
+      calle: s.calle || '',
+      numero: s.numero || '',
+      localidad: s.localidad || '',
+      provincia: s.provincia || '',
+      provinciaId: PROVINCIAS_ARGENTINA.find(p => p.nombre === s.provincia)?.id || '',
+      codigoPostal: s.codigoPostal || '',
+    })
+    setEditSucursalId(s.id)
   }
 
   const addExpreso = async (e) => {
     e.preventDefault()
-    await addDoc(collection(db, 'expresos'), {
+    const payload = {
       userId: user.uid,
       nombre: formExpreso.nombre,
       direccionCABA: formExpreso.direccionCABA,
       telefono: formExpreso.telefono || null,
-    })
+    }
+    if (editExpresoId) {
+      await updateDoc(doc(db, 'expresos', editExpresoId), payload)
+      setEditExpresoId(null)
+    } else {
+      await addDoc(collection(db, 'expresos'), payload)
+    }
     setFormExpreso({ nombre: '', direccionCABA: '', telefono: '' })
+  }
+
+  const cargarExpresoParaEditar = (e) => {
+    setFormExpreso({
+      nombre: e.nombre || '',
+      direccionCABA: e.direccionCABA || '',
+      telefono: e.telefono || '',
+    })
+    setEditExpresoId(e.id)
   }
 
   const guardarContacto = async (e) => {
@@ -315,15 +376,17 @@ export default function Datos() {
               </select>
               <input placeholder="Código postal" value={formRazon.codigoPostal} onChange={(e) => setFormRazon({ ...formRazon, codigoPostal: e.target.value })} style={{ maxWidth: 120 }} />
             </div>
-            <button type="submit" className="btn btn-primary">Agregar razón social</button>
+            <button type="submit" className="btn btn-primary">{editRazonId ? 'Guardar cambios' : 'Agregar razón social'}</button>
+            {editRazonId && <button type="button" className="btn btn-ghost" onClick={() => { setEditRazonId(null); setFormRazon({ razonSocial: '', cuit: '', condicionFiscal: '', calle: '', numero: '', localidad: '', provincia: '', provinciaId: '', codigoPostal: '' }); }}>Cancelar</button>}
           </form>
           <ul className="entidades-list">
             {razonesSociales.map(r => (
-              <li key={r.id}>
-                <strong>{r.razonSocial}</strong>
+              <li key={r.id} className="entidades-list-item">
+                <span><strong>{r.razonSocial}</strong>
                 {r.cuit && ` — CUIT: ${r.cuit}`}
                 {r.condicionFiscal && ` — ${CONDICIONES_FISCALES.find(c => c.value === r.condicionFiscal)?.label || r.condicionFiscal}`}
-                {formatDirFact(r) && ` — ${formatDirFact(r)}`}
+                {formatDirFact(r) && ` — ${formatDirFact(r)}`}</span>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => cargarRazonParaEditar(r)}>Editar</button>
               </li>
             ))}
           </ul>
@@ -365,17 +428,22 @@ export default function Datos() {
               {localidadesSucursal.map(l => <option key={l.id} value={l.nombre}>{l.nombre}</option>)}
             </select>
             <input placeholder="Código postal" value={formSucursal.codigoPostal} onChange={(e) => setFormSucursal({ ...formSucursal, codigoPostal: e.target.value })} />
-            <button type="submit" className="btn btn-primary">Agregar sucursal</button>
+            <button type="submit" className="btn btn-primary">{editSucursalId ? 'Guardar cambios' : 'Agregar sucursal'}</button>
+            {editSucursalId && <button type="button" className="btn btn-ghost" onClick={() => { setEditSucursalId(null); setFormSucursal({ razonSocialId: '', razonSocial: '', calle: '', numero: '', localidad: '', provincia: '', provinciaId: '', codigoPostal: '' }); }}>Cancelar</button>}
           </form>
           <ul className="entidades-list">
             {sucursalesSinRazon.map(s => (
-              <li key={s.id}><em>Sin razón social</em> — {formatSucursal(s)}</li>
+              <li key={s.id} className="entidades-list-item">
+                <span><em>Sin razón social</em> — {formatSucursal(s)}</span>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => cargarSucursalParaEditar(s)}>Editar</button>
+              </li>
             ))}
             {sucursales.map(s => {
               const razon = razonesSociales.find(r => r.id === s.razonSocialId)
               return (
-                <li key={s.id}>
-                  <strong>{razon?.razonSocial || s.razonSocial || 'Sin razón'}</strong> — {formatSucursal(s)}
+                <li key={s.id} className="entidades-list-item">
+                  <span><strong>{razon?.razonSocial || s.razonSocial || 'Sin razón'}</strong> — {formatSucursal(s)}</span>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => cargarSucursalParaEditar(s)}>Editar</button>
                 </li>
               )
             })}
@@ -389,11 +457,15 @@ export default function Datos() {
             <input placeholder="Nombre del expreso *" value={formExpreso.nombre} onChange={(e) => setFormExpreso({ ...formExpreso, nombre: e.target.value })} required />
             <input placeholder="Dirección CABA *" value={formExpreso.direccionCABA} onChange={(e) => setFormExpreso({ ...formExpreso, direccionCABA: e.target.value })} required />
             <input placeholder="Teléfono" value={formExpreso.telefono} onChange={(e) => setFormExpreso({ ...formExpreso, telefono: e.target.value })} />
-            <button type="submit" className="btn btn-primary">Agregar</button>
+            <button type="submit" className="btn btn-primary">{editExpresoId ? 'Guardar cambios' : 'Agregar'}</button>
+            {editExpresoId && <button type="button" className="btn btn-ghost" onClick={() => { setEditExpresoId(null); setFormExpreso({ nombre: '', direccionCABA: '', telefono: '' }); }}>Cancelar</button>}
           </form>
           <ul className="entidades-list">
             {expresos.map(e => (
-              <li key={e.id}><strong>{e.nombre}</strong> — {e.direccionCABA} {e.telefono ? `— ${e.telefono}` : ''}</li>
+              <li key={e.id} className="entidades-list-item">
+                <span><strong>{e.nombre}</strong> — {e.direccionCABA} {e.telefono ? `— ${e.telefono}` : ''}</span>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => cargarExpresoParaEditar(e)}>Editar</button>
+              </li>
             ))}
           </ul>
         </section>

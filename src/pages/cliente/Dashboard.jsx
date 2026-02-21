@@ -27,6 +27,14 @@ export default function Dashboard() {
           <h3>Mis pedidos</h3>
           <p>Historial y detalle de tus pedidos</p>
         </Link>
+        <Link to="/fotos-videos" className="card card-link">
+          <h3>Fotos y videos</h3>
+          <p>Material audiovisual para descargar</p>
+        </Link>
+        <Link to="/novedades" className="card card-link">
+          <h3>Novedades</h3>
+          <p>Notificaciones y novedades</p>
+        </Link>
       </div>
     </div>
   )

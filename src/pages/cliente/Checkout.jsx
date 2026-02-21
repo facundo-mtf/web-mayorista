@@ -30,6 +30,9 @@ function formatSucursal(s) {
 export default function Checkout() {
   const { user, profile } = useAuth()
   const navigate = useNavigate()
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
   const [razonesSociales, setRazonesSociales] = useState([])
   const [sucursales, setSucursales] = useState([])
   const [sucursalesSinRazon, setSucursalesSinRazon] = useState([])

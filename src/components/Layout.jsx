@@ -28,6 +28,8 @@ export default function Layout() {
             <Link to="/checkout">Carrito</Link>
             <Link to="/datos">Datos</Link>
             <Link to="/mis-pedidos">Mis pedidos</Link>
+            <Link to="/fotos-videos">Fotos y videos</Link>
+            <Link to="/novedades">Novedades</Link>
             {isAdmin && <Link to="/admin">Admin</Link>}
             <div className="user-menu">
               <span className="user-email">{user?.email}</span>

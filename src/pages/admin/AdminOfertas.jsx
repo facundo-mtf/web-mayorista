@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import { notificarTodosLosClientes } from '../../utils/notificaciones'
 import { formatMoneda } from '../../utils/formatoNumero'
 
 export default function AdminOfertas() {
@@ -51,6 +52,12 @@ export default function AdminOfertas() {
         sku: producto.sku ?? producto.codigo,
       })
       setDescuentoEdit(prev => ({ ...prev, [producto.id]: '' }))
+      const notif = await notificarTodosLosClientes('Nueva oferta', 'Se agregó una nueva oferta al catálogo.')
+      if (!notif.ok) {
+        alert(`Oferta guardada. No se pudieron enviar notificaciones: ${notif.error || 'Revisá que tu usuario tenga role "admin" en la colección users.'}`)
+      } else if (notif.count === 0) {
+        console.warn('Oferta guardada. No hay clientes en la base para notificar.')
+      }
     } catch (err) {
       console.error('Error al agregar oferta:', err)
       alert('No se pudo agregar la oferta. Revisá la consola o permisos de Firestore.')

@@ -12,6 +12,8 @@ import Catalogo from './pages/cliente/Catalogo'
 import Checkout from './pages/cliente/Checkout'
 import Datos from './pages/cliente/Datos'
 import MisPedidos from './pages/cliente/MisPedidos'
+import FotosVideos from './pages/cliente/FotosVideos'
+import Novedades from './pages/cliente/Novedades'
 import AdminLayout from './components/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminUsuarios from './pages/admin/AdminUsuarios'
@@ -21,6 +23,7 @@ import AdminUsuarioDetalle from './pages/admin/AdminUsuarioDetalle'
 import AdminStock from './pages/admin/AdminStock'
 import AdminVendedores from './pages/admin/AdminVendedores'
 import AdminOfertas from './pages/admin/AdminOfertas'
+import AdminFotosVideos from './pages/admin/AdminFotosVideos'
 
 function ProtectedRoute({ children, requireAdmin }) {
   const { user, profile, loading } = useAuth()
@@ -59,6 +62,8 @@ export default function App() {
         <Route path="checkout" element={<Checkout />} />
         <Route path="datos" element={<Datos />} />
         <Route path="mis-pedidos" element={<MisPedidos />} />
+        <Route path="fotos-videos" element={<FotosVideos />} />
+        <Route path="novedades" element={<Novedades />} />
       </Route>
 
       <Route path="/admin" element={
@@ -74,6 +79,7 @@ export default function App() {
         <Route path="catalogo" element={<AdminStock />} />
         <Route path="ofertas" element={<AdminOfertas />} />
         <Route path="vendedores" element={<AdminVendedores />} />
+        <Route path="fotos-videos" element={<AdminFotosVideos />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

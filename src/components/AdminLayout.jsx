@@ -26,6 +26,7 @@ export default function AdminLayout() {
             <Link to="/admin/catalogo">Catálogo</Link>
             <Link to="/admin/ofertas">Ofertas</Link>
             <Link to="/admin/vendedores">Vendedores</Link>
+            <Link to="/admin/fotos-videos">Fotos y videos</Link>
             <Link to="/">Ver sitio</Link>
             <button onClick={handleLogout} className="btn btn-ghost btn-sm">Salir</button>
           </nav>

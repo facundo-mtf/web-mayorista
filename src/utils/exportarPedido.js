@@ -187,6 +187,23 @@ export async function exportarPedidoPDF(pedido) {
     y += 2
   }
 
+  if (pedido.observaciones && String(pedido.observaciones).trim()) {
+    y += 4
+    const obsLines = pdf.splitTextToSize(String(pedido.observaciones).trim(), pageW - margin * 2 - 10)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.text('Observaciones / Comentarios', margin, y)
+    y += 5
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+    obsLines.forEach((line) => {
+      if (y > 270) { pdf.addPage(); y = 20 }
+      pdf.text(line, margin, y)
+      y += 5
+    })
+    y += 2
+  }
+
   y += 4
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(10)
@@ -329,6 +346,7 @@ export function exportarPedidoExcel(pedido) {
     ['Contacto', pedido.contacto ? `${pedido.contacto.nombre} ${pedido.contacto.apellido}` : '-'],
     ['Teléfono', pedido.contacto?.telefono || '-'],
     ['Email', pedido.contacto?.email || '-'],
+    ...(pedido.observaciones ? [['Observaciones / Comentarios', pedido.observaciones]] : []),
     [],
     ['SKU', 'Descripción', 'Bultos', 'Unid/bulto', 'Precio unit.', 'Precio bulto', 'Subtotal'],
   ]

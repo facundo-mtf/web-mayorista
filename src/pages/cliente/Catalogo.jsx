@@ -224,13 +224,15 @@ export default function Catalogo() {
   const addToCart = (prod, bultos = 1) => {
     const bultosInt = Math.floor(Number(bultos)) || 1
     if (bultosInt < 1) return
-
+    const scrollY = window.scrollY
     const enCarrito = carrito.find(p => p.id === prod.id)
     if (enCarrito) {
       setCarrito(carrito.map(p => p.id === prod.id ? { ...p, qty: p.qty + bultosInt } : p))
     } else {
       setCarrito([...carrito, { ...prod, qty: bultosInt }])
     }
+    requestAnimationFrame(() => { window.scrollTo(0, scrollY) })
+    setTimeout(() => { window.scrollTo(0, scrollY) }, 0)
   }
 
   return (

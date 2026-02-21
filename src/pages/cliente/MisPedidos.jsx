@@ -27,6 +27,14 @@ export default function MisPedidos() {
     return date.toLocaleString('es-AR')
   }
 
+  const ESTADOS_LABEL = {
+    pendiente: 'Pendiente',
+    confirmado: 'Confirmado',
+    enviado: 'Enviado',
+    entregado: 'Entregado',
+    cancelado: 'Cancelado',
+  }
+
   return (
     <div className="container page">
       <h1 className="page-title">Mis pedidos</h1>
@@ -40,6 +48,9 @@ export default function MisPedidos() {
               <div className="pedido-header">
                 <span>#{p.numeroPedido ?? p.id.slice(-6)}</span>
                 <span>{formatDate(p.createdAt)}</span>
+                <span className={`pedido-estado pedido-estado-${(p.estado || 'pendiente').toLowerCase()}`}>
+                  {ESTADOS_LABEL[p.estado] || ESTADOS_LABEL.pendiente}
+                </span>
               </div>
               <div className="pedido-body">
                 <p><strong>Razón social:</strong> {p.razonSocial?.razonSocial || 'Sin razón social'}</p>

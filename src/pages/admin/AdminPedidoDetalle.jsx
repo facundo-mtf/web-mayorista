@@ -3,6 +3,7 @@ import { doc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useState, useEffect } from 'react'
 import { db } from '../../firebase/config'
 import { exportarPedidoPDF, exportarPedidoExcel } from '../../utils/exportarPedido'
+import { notificarUsuario } from '../../utils/notificaciones'
 import { formatMoneda } from '../../utils/formatoNumero'
 
 const ESTADOS = [
@@ -49,11 +50,15 @@ export default function AdminPedidoDetalle() {
   }
 
   const handleGuardarEstado = async () => {
-    if (!id) return
+    if (!id || !pedido) return
     setGuardando(true)
     try {
       await updateDoc(doc(db, 'pedidos', id), { estado: estadoEdit })
       setModoEditar(false)
+      const estadoLabel = ESTADOS.find(e => e.value === estadoEdit)?.label || estadoEdit
+      if (pedido.userId) {
+        notificarUsuario(pedido.userId, 'Estado de tu pedido', `Tu pedido #${pedido.numeroPedido ?? id.slice(-6)} está ahora: ${estadoLabel}.`).catch(() => {})
+      }
     } finally {
       setGuardando(false)
     }
@@ -100,6 +105,9 @@ export default function AdminPedidoDetalle() {
         </p>
         {(pedido.contacto || pedido.contactoCompra) && (
           <p><strong>Contacto compra:</strong> {pedido.contactoCompra ? `${pedido.contactoCompra.nombre} ${pedido.contactoCompra.apellido} — ${pedido.contactoCompra.telefono} — ${pedido.contactoCompra.email}` : `${pedido.contacto?.nombre} ${pedido.contacto?.apellido} — ${pedido.contacto?.telefono} — ${pedido.contacto?.email}`}</p>
+        )}
+        {pedido.observaciones && (
+          <p><strong>Observaciones / Comentarios:</strong> {pedido.observaciones}</p>
         )}
         {pedido.contactoPago && pedido.contactoCompra && (pedido.contactoPago.nombre !== pedido.contactoCompra.nombre || pedido.contactoPago.email !== pedido.contactoCompra.email) && (
           <p><strong>Contacto pago:</strong> {pedido.contactoPago.nombre} {pedido.contactoPago.apellido} — {pedido.contactoPago.telefono} — {pedido.contactoPago.email}</p>

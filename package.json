@@ -2,8 +2,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:emulators": "vite --mode emulators",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "emulators": "firebase emulators:start --only auth,firestore,storage"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",

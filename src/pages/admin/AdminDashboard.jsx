@@ -22,15 +22,15 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const unsub = onSnapshot(
-      query(collection(db, 'users'), where('approved', '==', false), where('role', '==', 'cliente')),
+      query(collection(db, 'users'), where('role', '==', 'cliente')),
       (snap) => {
-        const pendientes = snap.docs
+        const clientes = snap.docs
           .map(d => ({ ...d.data(), id: d.id }))
           .filter(u => !u.deleted)
         const since = lastViewedUsuariosAt ? new Date(lastViewedUsuariosAt) : null
         const count = since
-          ? pendientes.filter(u => u.createdAt?.toDate?.() > since).length
-          : pendientes.length
+          ? clientes.filter(u => (u.createdAt?.toDate?.() ?? new Date(0)) > since).length
+          : clientes.length
         setNuevosClientes(count)
       }
     )

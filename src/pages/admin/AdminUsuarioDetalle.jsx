@@ -2,6 +2,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { doc, collection, query, where, orderBy, onSnapshot, updateDoc } from 'firebase/firestore'
 import { useState, useEffect } from 'react'
 import { db } from '../../firebase/config'
+import { notificarUsuario } from '../../utils/notificaciones'
 import { formatMoneda } from '../../utils/formatoNumero'
 
 const ESTADOS_CLIENTE = [
@@ -152,6 +153,9 @@ export default function AdminUsuarioDetalle() {
         descuentoBase,
         vendedorId: vendedorId || null,
       })
+      if (vendedorId) {
+        notificarUsuario(id, 'Asignación de vendedor', 'Se te asignó un vendedor.').catch(() => {})
+      }
     } finally {
       setGuardando(false)
     }
