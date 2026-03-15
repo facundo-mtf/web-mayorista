@@ -1,10 +1,18 @@
 import { useState, useEffect } from 'react'
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import { useAuth } from '../../context/AuthContext'
+import { useActivityLog } from '../../utils/activityLog'
 
 export default function FotosVideos() {
+  const { user } = useAuth()
+  const { log } = useActivityLog()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (user) log('page_fotos_videos', {})
+  }, [user?.uid])
 
   useEffect(() => {
     const q = query(
@@ -39,17 +47,19 @@ export default function FotosVideos() {
                   <img src={item.url} alt={item.titulo || 'Imagen'} className="fotos-videos-img" />
                 </a>
               ) : null}
-              {(item.titulo || item.descripcion) && (
-                <div className="fotos-videos-info">
-                  {item.titulo && <h3>{item.titulo}</h3>}
-                  {item.descripcion && <p>{item.descripcion}</p>}
-                  {item.url && (
-                    <a href={item.url} download target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm">
-                      Descargar
-                    </a>
-                  )}
-                </div>
-              )}
+              <div className="fotos-videos-info">
+                {(item.titulo || item.descripcion) && (
+                  <>
+                    {item.titulo && <h3>{item.titulo}</h3>}
+                    {item.descripcion && <p>{item.descripcion}</p>}
+                  </>
+                )}
+                {item.url && (
+                  <a href={item.url} download target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm">
+                    Descargar
+                  </a>
+                )}
+              </div>
             </div>
           ))}
         </div>

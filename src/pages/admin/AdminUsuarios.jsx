@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, onSnapshot, doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, onSnapshot, doc, updateDoc, setDoc, serverTimestamp, query, where, orderBy, limit, Timestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../context/AuthContext'
 
@@ -13,6 +13,8 @@ export default function AdminUsuarios() {
   const [descuentoBase, setDescuentoBase] = useState(0)
   const [vendedorId, setVendedorId] = useState('')
   const [filtro, setFiltro] = useState('todos')
+  const [usersWithNewActivity, setUsersWithNewActivity] = useState(new Set())
+  const [lastViewedAt, setLastViewedAt] = useState(undefined)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
@@ -23,7 +25,37 @@ export default function AdminUsuarios() {
 
   useEffect(() => {
     if (!user?.uid) return
-    setDoc(doc(db, 'adminConfig', user.uid), { lastViewedUsuariosAt: serverTimestamp() }, { merge: true })
+    const unsub = onSnapshot(doc(db, 'adminConfig', user.uid), (snap) => {
+      setLastViewedAt(snap.data()?.lastViewedUsuariosAt ?? null)
+    })
+    return () => unsub()
+  }, [user?.uid])
+
+  useEffect(() => {
+    if (lastViewedAt === undefined) return
+    const since = lastViewedAt || Timestamp.fromDate(new Date(0))
+    const q = query(
+      collection(db, 'activityLog'),
+      where('createdAt', '>', since),
+      orderBy('createdAt', 'desc'),
+      limit(500)
+    )
+    const unsub = onSnapshot(q, (snap) => {
+      const ids = new Set(snap.docs.map(d => d.data().userId).filter(Boolean))
+      setUsersWithNewActivity(ids)
+    }, (err) => {
+      console.warn('activityLog query:', err)
+      setUsersWithNewActivity(new Set())
+    })
+    return () => unsub()
+  }, [lastViewedAt])
+
+  useEffect(() => {
+    return () => {
+      if (user?.uid) {
+        setDoc(doc(db, 'adminConfig', user.uid), { lastViewedUsuariosAt: serverTimestamp() }, { merge: true }).catch(() => {})
+      }
+    }
   }, [user?.uid])
 
   useEffect(() => {
@@ -101,7 +133,12 @@ export default function AdminUsuarios() {
           <tbody>
             {usuariosFiltrados.map(u => (
               <tr key={u.id} className="admin-usuario-row" onClick={() => navigate(`/admin/usuarios/${u.id}`)}>
-                <td>{u.email}</td>
+                <td>
+                  <span className="admin-usuario-email-cell">
+                    {usersWithNewActivity.has(u.id) && <span className="user-activity-dot" title="Tuvo actividad reciente" />}
+                    {u.email}
+                  </span>
+                </td>
                 <td>{u.nombreEmpresa}</td>
                 <td>{u.rubro}</td>
                 <td>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { collection, onSnapshot, addDoc, deleteDoc, doc, orderBy, query } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, orderBy, query } from 'firebase/firestore'
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { useAuth } from '../../context/AuthContext'
 import { notificarTodosLosClientes } from '../../utils/notificaciones'
@@ -9,6 +9,9 @@ export default function AdminFotosVideos() {
   const { user } = useAuth()
   const [items, setItems] = useState([])
   const [subiendo, setSubiendo] = useState(false)
+  const [progreso, setProgreso] = useState(null)
+  const [editandoId, setEditandoId] = useState(null)
+  const [editForm, setEditForm] = useState({ titulo: '', descripcion: '' })
   const [form, setForm] = useState({ tipo: 'foto', titulo: '', descripcion: '', file: null })
 
   useEffect(() => {
@@ -23,10 +26,22 @@ export default function AdminFotosVideos() {
     e.preventDefault()
     if (!form.file || !user) return
     setSubiendo(true)
+    setProgreso(0)
     try {
       const path = `materialPublico/${user.uid}/${Date.now()}_${form.file.name}`
       const storageRef = ref(storage, path)
-      await uploadBytes(storageRef, form.file)
+      const uploadTask = uploadBytesResumable(storageRef, form.file)
+      await new Promise((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snap) => {
+            const pct = snap.totalBytes ? Math.round((snap.bytesTransferred / snap.totalBytes) * 100) : 0
+            setProgreso(pct)
+          },
+          (err) => reject(err),
+          () => resolve()
+        )
+      })
       const url = await getDownloadURL(storageRef)
       await addDoc(collection(db, 'materialPublico'), {
         tipo: form.tipo,
@@ -42,12 +57,37 @@ export default function AdminFotosVideos() {
       alert('Error al subir. Revisá la consola.')
     } finally {
       setSubiendo(false)
+      setProgreso(null)
     }
   }
 
   const eliminar = async (id) => {
     if (!confirm('¿Eliminar este elemento?')) return
     await deleteDoc(doc(db, 'materialPublico', id))
+  }
+
+  const abrirEditar = (item) => {
+    setEditandoId(item.id)
+    setEditForm({ titulo: item.titulo || '', descripcion: item.descripcion || '' })
+  }
+
+  const guardarEdicion = async (e) => {
+    e.preventDefault()
+    if (!editandoId) return
+    try {
+      await updateDoc(doc(db, 'materialPublico', editandoId), {
+        titulo: editForm.titulo.trim() || null,
+        descripcion: editForm.descripcion.trim() || null,
+      })
+      setEditandoId(null)
+    } catch (err) {
+      console.error(err)
+      alert('Error al guardar.')
+    }
+  }
+
+  const cancelarEdicion = () => {
+    setEditandoId(null)
   }
 
   return (
@@ -84,7 +124,7 @@ export default function AdminFotosVideos() {
           <span className="input-file-text">{form.file ? form.file.name : 'Seleccionar'}</span>
         </label>
         <button type="submit" className="btn btn-primary" disabled={subiendo}>
-          {subiendo ? 'Subiendo...' : 'Subir'}
+          {subiendo ? (progreso != null ? `Subiendo... ${progreso}%` : 'Subiendo...') : 'Subir'}
         </button>
       </form>
 
@@ -101,8 +141,35 @@ export default function AdminFotosVideos() {
                 ) : (
                   <img src={item.url} alt="" style={{ maxWidth: 120, maxHeight: 80, objectFit: 'cover' }} />
                 )}
-                <span>{item.titulo || item.descripcion || '(sin título)'}</span>
-                <button type="button" className="btn btn-danger-outline btn-sm" onClick={() => eliminar(item.id)}>Eliminar</button>
+                {editandoId === item.id ? (
+                  <form onSubmit={guardarEdicion} className="admin-fotos-videos-edit-form">
+                    <input
+                      type="text"
+                      placeholder="Título"
+                      value={editForm.titulo}
+                      onChange={(e) => setEditForm({ ...editForm, titulo: e.target.value })}
+                      className="admin-fotos-videos-edit-input"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Descripción"
+                      value={editForm.descripcion}
+                      onChange={(e) => setEditForm({ ...editForm, descripcion: e.target.value })}
+                      className="admin-fotos-videos-edit-input"
+                    />
+                    <button type="submit" className="btn btn-primary btn-sm">Guardar</button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={cancelarEdicion}>Cancelar</button>
+                  </form>
+                ) : (
+                  <span>{item.titulo || item.descripcion || '(sin título)'}</span>
+                )}
+                {editandoId !== item.id && (
+                  <>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirEditar(item)}>Editar</button>
+                    <a href={item.url} download target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">Descargar</a>
+                    <button type="button" className="btn btn-danger-outline btn-sm" onClick={() => eliminar(item.id)}>Eliminar</button>
+                  </>
+                )}
               </li>
             ))}
           </ul>

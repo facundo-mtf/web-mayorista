@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { collection, query, where, addDoc, onSnapshot, doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../context/AuthContext'
+import { useActivityLog } from '../../utils/activityLog'
 import { PROVINCIAS_ARGENTINA } from '../../data/provinciasArgentina'
 import { fetchLocalidades } from '../../utils/georefApi'
 
@@ -16,6 +17,7 @@ const CONDICIONES_FISCALES = [
 
 export default function Datos() {
   const { user, profile } = useAuth()
+  const { log } = useActivityLog()
   const navigate = useNavigate()
   const location = useLocation()
   const fromRegister = location.state?.fromRegister === true
@@ -149,6 +151,10 @@ export default function Datos() {
   }, [profile, user?.email])
 
   useEffect(() => {
+    if (user) log('page_datos', {})
+  }, [user?.uid])
+
+  useEffect(() => {
     if (mismoCompraQuePaga) setFormPago({ ...formCompra })
   }, [mismoCompraQuePaga])
 
@@ -173,8 +179,10 @@ export default function Datos() {
     if (editRazonId) {
       await updateDoc(doc(db, 'razonesSociales', editRazonId), payload)
       setEditRazonId(null)
+      log('datos_razon_edit', { razonSocial: formRazon.razonSocial })
     } else {
       await addDoc(collection(db, 'razonesSociales'), payload)
+      log('datos_razon_add', { razonSocial: formRazon.razonSocial })
     }
     setFormRazon({ razonSocial: '', cuit: '', condicionFiscal: '', calle: '', numero: '', localidad: '', provincia: '', provinciaId: '', codigoPostal: '' })
   }
@@ -211,8 +219,10 @@ export default function Datos() {
     if (editSucursalId) {
       await updateDoc(doc(db, 'sucursales', editSucursalId), payload)
       setEditSucursalId(null)
+      log('datos_sucursal_edit', {})
     } else {
       await addDoc(collection(db, 'sucursales'), payload)
+      log('datos_sucursal_add', {})
     }
     setFormSucursal({ razonSocialId: '', razonSocial: '', calle: '', numero: '', localidad: '', provincia: '', provinciaId: '', codigoPostal: '' })
   }
@@ -243,8 +253,10 @@ export default function Datos() {
     if (editExpresoId) {
       await updateDoc(doc(db, 'expresos', editExpresoId), payload)
       setEditExpresoId(null)
+      log('datos_expreso_edit', { nombre: formExpreso.nombre })
     } else {
       await addDoc(collection(db, 'expresos'), payload)
+      log('datos_expreso_add', { nombre: formExpreso.nombre })
     }
     setFormExpreso({ nombre: '', direccionCABA: '', telefono: '' })
   }
@@ -281,6 +293,7 @@ export default function Datos() {
         emailContacto: formCompra.email || null,
       })
       setContactoGuardadoOk(true)
+      log('datos_contacto_guardar', {})
       setTimeout(() => setContactoGuardadoOk(false), 3000)
       const completo = !!(formCompra.nombre && formCompra.apellido && formCompra.telefono && formCompra.email &&
         formPagoEfectivo.nombre && formPagoEfectivo.apellido && formPagoEfectivo.telefono && formPagoEfectivo.email)

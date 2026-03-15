@@ -1,13 +1,16 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { auth } from '../firebase/config'
+import { useActivityLog } from '../utils/activityLog'
 
 export default function AdminLayout() {
   const navigate = useNavigate()
+  const { log } = useActivityLog()
 
   const handleLogout = () => {
+    log('logout', {})
     signOut(auth)
-    navigate('/login')
+    navigate('/')
   }
 
   return (
@@ -26,7 +29,6 @@ export default function AdminLayout() {
             <Link to="/admin/catalogo">Catálogo</Link>
             <Link to="/admin/ofertas">Ofertas</Link>
             <Link to="/admin/vendedores">Vendedores</Link>
-            <Link to="/admin/fotos-videos">Fotos y videos</Link>
             <Link to="/">Ver sitio</Link>
             <button onClick={handleLogout} className="btn btn-ghost btn-sm">Salir</button>
           </nav>

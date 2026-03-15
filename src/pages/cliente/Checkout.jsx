@@ -6,6 +6,7 @@ import { formatMoneda } from '../../utils/formatoNumero'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../context/AuthContext'
 import { useCarrito } from '../../context/CarritoContext'
+import { useActivityLog } from '../../utils/activityLog'
 
 const CONDICIONES = [
   { value: 'A', label: 'Factura A' },
@@ -29,10 +30,14 @@ function formatSucursal(s) {
 
 export default function Checkout() {
   const { user, profile } = useAuth()
+  const { log } = useActivityLog()
   const navigate = useNavigate()
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
+  useEffect(() => {
+    if (user) log('page_checkout', {})
+  }, [user?.uid])
   const [razonesSociales, setRazonesSociales] = useState([])
   const [sucursales, setSucursales] = useState([])
   const [sucursalesSinRazon, setSucursalesSinRazon] = useState([])
@@ -48,7 +53,6 @@ export default function Checkout() {
   const [errores, setErrores] = useState([])
   const [pedidoEnviado, setPedidoEnviado] = useState(false)
   const [pedidoEnviadoData, setPedidoEnviadoData] = useState(null)
-  const [contactoValido, setContactoValido] = useState(false)
   const [vendedorPedidoId, setVendedorPedidoId] = useState('')
   const [editandoContacto, setEditandoContacto] = useState(false)
   const [guardandoContacto, setGuardandoContacto] = useState(false)
@@ -60,10 +64,10 @@ export default function Checkout() {
 
   const descuentoBase = profile?.descuentoBase ?? 0
   const ofertaByProductId = Object.fromEntries((ofertas || []).map(o => [o.productId, o]))
-  const getPrecioBultoConOferta = (item, precioPorBulto) => {
+  const getPrecioUnitarioConOferta = (item, precioUnitario) => {
     const oferta = ofertaByProductId[item.id]
-    if (!oferta?.descuentoPct) return precioPorBulto
-    return precioPorBulto * (1 - (oferta.descuentoPct ?? 0) / 100)
+    if (!oferta?.descuentoPct) return precioUnitario
+    return precioUnitario * (1 - (oferta.descuentoPct ?? 0) / 100)
   }
   const aplicaProntoPago = false
 
@@ -214,8 +218,8 @@ export default function Checkout() {
 
 
   const subtotalAntesDesc = carrito.reduce((s, i) => {
-    const precioPorBulto = i.precioPorBulto ?? (i.precioUnitario ?? 0) * (i.unidadesPorBulto ?? 1)
-    const precioFinal = getPrecioBultoConOferta(i, precioPorBulto)
+    const precioUnit = i.precioUnitario ?? (i.precioPorBulto ?? 0) / (i.unidadesPorBulto ?? 1)
+    const precioFinal = getPrecioUnitarioConOferta(i, precioUnit)
     return s + precioFinal * i.qty
   }, 0)
   const montoDescuentoUsuario = subtotalAntesDesc * (descuentoBase / 100)
@@ -243,7 +247,6 @@ export default function Checkout() {
     selector1 && selector2 && selector3 && selector4 &&
     !requiereCUIT &&
     tieneContacto &&
-    contactoValido &&
     carrito.length > 0
 
   const getErrores = () => {
@@ -253,7 +256,6 @@ export default function Checkout() {
     if (!selector3) errs.push('Seleccioná la condición de compra (Factura A o Nota de pedido).')
     if (!selector4) errs.push('Seleccioná la logística.')
     if (!tieneContacto) errs.push('Completá datos de quien compra y quien paga en la sección Datos.')
-    if (tieneContacto && !contactoValido) errs.push('Confirmá que los datos de contacto son correctos.')
     if (requiereCUIT) errs.push('Para Factura A necesitás una razón social con CUIT.')
     if (carrito.length === 0) errs.push('Tu carrito está vacío.')
     return errs
@@ -304,19 +306,19 @@ export default function Checkout() {
         condicionFiscal: selector3,
         formaPago: null,
         items: carrito.map(i => {
-          const precioPorBulto = i.precioPorBulto ?? (i.precioUnitario ?? 0) * (i.unidadesPorBulto ?? 1)
-          const precioBultoEfectivo = getPrecioBultoConOferta(i, precioPorBulto)
-          const unid = i.unidadesPorBulto ?? 1
+          const precioUnit = i.precioUnitario ?? (i.precioPorBulto ?? 0) / (i.unidadesPorBulto ?? 1)
+          const precioUnitarioEfectivo = getPrecioUnitarioConOferta(i, precioUnit)
           return {
             id: i.id,
             descripcion: i.descripcion ?? i.nombre,
             sku: i.sku ?? i.codigo,
             dimensiones: i.dimensiones,
             presentacion: i.presentacion,
+            unidades: i.qty,
+            precioUnitario: precioUnitarioEfectivo,
             bultos: i.qty,
-            unidadesPorBulto: unid,
-            precioUnitario: precioBultoEfectivo / unid,
-            precioPorBulto: precioBultoEfectivo,
+            unidadesPorBulto: 1,
+            precioPorBulto: precioUnitarioEfectivo,
           }
         }),
         subtotal,
@@ -331,9 +333,9 @@ export default function Checkout() {
         createdAt: new Date(),
         estado: 'pendiente',
       }
-      await addDoc(collection(db, 'pedidos'), pedidoPayload)
-
-      setPedidoEnviadoData({ ...pedidoPayload, id: null })
+      const ref = await addDoc(collection(db, 'pedidos'), pedidoPayload)
+      log('order_placed', { orderId: ref.id, total: conProntoPago, itemsCount: carrito.length })
+      setPedidoEnviadoData({ ...pedidoPayload, id: ref.id })
       setCarrito([])
       setSelector1(''); setSelector2(''); setSelector3(''); setSelector4('')
       setVendedorPedidoId('')
@@ -381,22 +383,17 @@ export default function Checkout() {
             <h3>Tu pedido</h3>
             <ul className="carrito-items-editable">
               {carrito.map(i => {
-                const unidPorBulto = i.unidadesPorBulto ?? 1
-                const precioPorBulto = i.precioPorBulto ?? (i.precioUnitario ?? 0) * unidPorBulto
-                const precioBultoFinal = getPrecioBultoConOferta(i, precioPorBulto)
+                const precioUnit = i.precioUnitario ?? (i.precioPorBulto ?? 0) / (i.unidadesPorBulto ?? 1)
+                const precioUnitFinal = getPrecioUnitarioConOferta(i, precioUnit)
                 const tieneOferta = !!ofertaByProductId[i.id]
-                const totalLinea = precioBultoFinal * i.qty
-                const precioUnitFinal = precioBultoFinal / unidPorBulto
+                const totalLinea = precioUnitFinal * i.qty
                 return (
                   <li key={i.id} className="carrito-item">
                     <div className="carrito-item-info">
                       <span className="carrito-item-nombre">{i.descripcion ?? i.nombre}</span>
                       <span className="carrito-item-detalle">
-                        {(() => {
-                          const totalUnid = i.qty * unidPorBulto
-                          return `${totalUnid} ${totalUnid === 1 ? 'unidad' : 'unid.'}`
-                        })()} · $/u ${formatMoneda(precioUnitFinal)} <span className="price-sin-iva">(sin IVA)</span>
-                        {tieneOferta && <span className="product-price-base-tachado">${formatMoneda(precioPorBulto * i.qty)}</span>}
+                        {i.qty} {i.qty === 1 ? 'unidad' : 'unid.'} · $/u ${formatMoneda(precioUnitFinal)} <span className="price-sin-iva">(sin IVA)</span>
+                        {tieneOferta && <span className="product-price-base-tachado"> ${formatMoneda(precioUnit * i.qty)}</span>}
                         {' '}· ${formatMoneda(totalLinea)}
                       </span>
                     </div>
@@ -541,12 +538,6 @@ export default function Checkout() {
                   </div>
                   {!tieneContacto && (
                     <p className="hint error">Completá datos de quien compra y quien paga en la sección <Link to="/datos">Datos</Link>.</p>
-                  )}
-                  {tieneContacto && (
-                    <label className="checkbox-label">
-                      <input type="checkbox" checked={contactoValido} onChange={(e) => { setContactoValido(e.target.checked); setErrores([]); }} />
-                      Confirmo que los datos son correctos
-                    </label>
                   )}
                 </>
               )}

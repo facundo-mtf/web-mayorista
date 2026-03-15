@@ -62,11 +62,12 @@ export default function MisPedidos() {
                   <strong>Productos:</strong>
                   <ul>
                     {p.items?.map((item, i) => {
+                      const unidades = item.unidades ?? item.bultos ?? 0
                       const precioUnit = item.precioUnitario ?? (item.precioPorBulto ?? 0) / (item.unidadesPorBulto ?? 1)
-                      const precioBulto = item.precioPorBulto ?? precioUnit * (item.unidadesPorBulto ?? 1)
+                      const subtotal = unidades * precioUnit
                       return (
                         <li key={i}>
-                          {item.descripcion} — {item.bultos} bulto(s) × $/u ${formatMoneda(precioUnit)} = ${formatMoneda((item.bultos || 0) * precioBulto)}
+                          {item.descripcion} — {unidades} {unidades === 1 ? 'unidad' : 'unidades'} × $/u ${formatMoneda(precioUnit)} = ${formatMoneda(subtotal)}
                         </li>
                       )
                     })}

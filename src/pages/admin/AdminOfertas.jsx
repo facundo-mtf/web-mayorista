@@ -102,12 +102,12 @@ export default function AdminOfertas() {
             <ul className="admin-ofertas-lista">
               {productosFiltrados.map(p => {
                 const yaEnOferta = ofertas.find(o => o.productId === p.id)
-                const precioBulto = p.precioPorBulto ?? (p.precioUnitario ?? 0) * (p.unidadesPorBulto ?? 1)
+                const precioUnit = p.precioUnitario ?? (p.precioPorBulto ?? 0) / (p.unidadesPorBulto ?? 1)
                 const desc = descuentoEdit[p.id] ?? (yaEnOferta?.descuentoPct ?? '')
                 return (
                   <li key={p.id} className="admin-oferta-item">
                     <span className="admin-oferta-nombre">{p.descripcion ?? p.nombre} — {p.sku ?? p.codigo}</span>
-                    <span className="admin-oferta-precio">${formatMoneda(precioBulto)}/bulto</span>
+                    <span className="admin-oferta-precio">${formatMoneda(precioUnit)}/unidad</span>
                     <div className="admin-oferta-acciones">
                       <input
                         type="number"
@@ -147,12 +147,12 @@ export default function AdminOfertas() {
           <ul className="admin-ofertas-lista">
             {ofertas.map(o => {
               const p = productos.find(pr => pr.id === o.productId)
-              const precioBulto = p ? (p.precioPorBulto ?? (p.precioUnitario ?? 0) * (p.unidadesPorBulto ?? 1)) : 0
-              const conDescuento = precioBulto * (1 - (o.descuentoPct ?? 0) / 100)
+              const precioUnit = p ? (p.precioUnitario ?? (p.precioPorBulto ?? 0) / (p.unidadesPorBulto ?? 1)) : 0
+              const conDescuento = precioUnit * (1 - (o.descuentoPct ?? 0) / 100)
               return (
                 <li key={o.id} className="admin-oferta-item">
                   <span className="admin-oferta-nombre">{o.descripcion ?? p?.descripcion} — {o.sku ?? p?.sku}</span>
-                  <span className="admin-oferta-precio">${formatMoneda(precioBulto)} → ${formatMoneda(conDescuento)} ({o.descuentoPct}% off)</span>
+                  <span className="admin-oferta-precio">${formatMoneda(precioUnit)}/u → ${formatMoneda(conDescuento)}/u ({o.descuentoPct}% off)</span>
                   <button type="button" className="btn btn-danger-outline btn-sm" onClick={() => quitarOferta(o.productId)}>Quitar</button>
                 </li>
               )

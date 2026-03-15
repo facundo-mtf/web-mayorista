@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { doc, collection, query, where, orderBy, onSnapshot, updateDoc } from 'firebase/firestore'
+import { doc, collection, query, where, orderBy, limit, onSnapshot, updateDoc } from 'firebase/firestore'
 import { useState, useEffect } from 'react'
 import { db } from '../../firebase/config'
 import { notificarUsuario } from '../../utils/notificaciones'
@@ -30,6 +30,7 @@ export default function AdminUsuarioDetalle() {
   const [descuentoBase, setDescuentoBase] = useState(0)
   const [vendedorId, setVendedorId] = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [actividad, setActividad] = useState([])
 
   useEffect(() => {
     if (!id) return
@@ -101,10 +102,50 @@ export default function AdminUsuarioDetalle() {
     return () => unsub()
   }, [])
 
+  useEffect(() => {
+    if (!id) return
+    const q = query(
+      collection(db, 'activityLog'),
+      where('userId', '==', id),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    )
+    const unsub = onSnapshot(q, (snap) => {
+      setActividad(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    })
+    return () => unsub()
+  }, [id])
+
   const formatDate = (d) => {
     if (!d) return '-'
     const date = d?.toDate ? d.toDate() : new Date(d)
     return date.toLocaleString('es-AR')
+  }
+
+  const formatActividadLabel = (entry) => {
+    const p = entry.payload || {}
+    switch (entry.action) {
+      case 'register': return 'Se registró en la página'
+      case 'login': return 'Inició sesión'
+      case 'logout': return 'Cerró sesión'
+      case 'page_close': return 'Cerró la pestaña o salió de la página'
+      case 'page_catalogo': return 'Entró a Realizar pedido (catálogo)'
+      case 'page_checkout': return 'Entró al Carrito / Checkout'
+      case 'page_datos': return 'Entró a Datos'
+      case 'page_fotos_videos': return 'Entró a Fotos y videos'
+      case 'datos_razon_add': return `Agregó razón social: ${p.razonSocial || '-'}`
+      case 'datos_razon_edit': return `Editó razón social: ${p.razonSocial || '-'}`
+      case 'datos_sucursal_add': return 'Agregó sucursal de entrega'
+      case 'datos_sucursal_edit': return 'Editó sucursal de entrega'
+      case 'datos_expreso_add': return `Agregó expreso: ${p.nombre || '-'}`
+      case 'datos_expreso_edit': return `Editó expreso: ${p.nombre || '-'}`
+      case 'datos_contacto_guardar': return 'Guardó datos de contacto (compra/pago)'
+      case 'cart_add_product': return `Agregó al carrito: ${p.productName || p.productId || 'producto'} (${p.unidades ?? p.bultos ?? 1} ${(p.unidades ?? p.bultos ?? 1) === 1 ? 'unidad' : 'unidades'})`
+      case 'cart_remove_product': return `Quitó del carrito: ${p.productName || p.productId || 'producto'}`
+      case 'cart_update_qty': return `Actualizó cantidad: ${p.productName || p.productId} — ${p.unidades ?? p.bultos ?? 0} unidades`
+      case 'order_placed': return `Realizó pedido #${(p.orderId || '').slice(-6)} — ${p.itemsCount ?? 0} ítem(s), total $${typeof p.total === 'number' ? formatMoneda(p.total) : p.total ?? '-'}`
+      default: return entry.action || 'Acción'
+    }
   }
 
   const estadoActual = usuario?.role === 'cliente'
@@ -207,12 +248,21 @@ export default function AdminUsuarioDetalle() {
       )}
 
       <div className="admin-usuario-datos">
+        <h3>Datos del registro</h3>
+        <p className="muted">Datos con los que el usuario se registró (nombre, teléfono, email).</p>
+        <div className="admin-usuario-datos-grid">
+          <p><strong>Nombre:</strong> {usuario.nombreContacto || '-'}</p>
+          <p><strong>Apellido:</strong> {usuario.apellidoContacto || '-'}</p>
+          <p><strong>Teléfono:</strong> {usuario.telefonoContacto || usuario.telefono || '-'}</p>
+          <p><strong>Teléfono alternativo:</strong> {usuario.telefonoAlternativo || '-'}</p>
+          <p><strong>Email:</strong> {usuario.emailContacto || usuario.email || '-'}</p>
+        </div>
+
         <h3>Datos del cliente (perfil)</h3>
         <div className="admin-usuario-datos-grid">
-          <p><strong>Email:</strong> {usuario.email}</p>
           <p><strong>Empresa:</strong> {usuario.nombreEmpresa || '-'}</p>
           <p><strong>Rubro:</strong> {usuario.rubro || '-'}</p>
-          <p><strong>Teléfono:</strong> {usuario.telefono || '-'}</p>
+          <p><strong>Teléfono perfil:</strong> {usuario.telefono || '-'}</p>
         </div>
 
         <h3 className="admin-usuario-seccion-datos">Datos cargados en “Datos”</h3>
@@ -298,6 +348,26 @@ export default function AdminUsuarioDetalle() {
               </button>
             </div>
           </>
+        )}
+      </div>
+
+      <div className="admin-usuario-actividad">
+        <h3>Actividad reciente</h3>
+        <p className="muted">Últimas acciones del usuario en la página (registro, carrito, pedidos).</p>
+        {actividad.length === 0 ? (
+          <p className="empty-state">Sin actividad registrada aún.</p>
+        ) : (
+          <ul className="admin-usuario-actividad-list">
+            {actividad.map((a) => (
+              <li key={a.id} className="admin-usuario-actividad-item">
+                <span className="admin-usuario-actividad-time">{formatDate(a.createdAt)}</span>
+                <span className="admin-usuario-actividad-label">{formatActividadLabel(a)}</span>
+                {a.action === 'order_placed' && a.payload?.orderId && (
+                  <Link to={`/admin/pedidos/${a.payload.orderId}`} className="btn btn-ghost btn-sm">Ver pedido</Link>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 

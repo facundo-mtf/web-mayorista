@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
-import { auth } from '../firebase/config'
+import { auth, db } from '../firebase/config'
+import { logActivity } from '../utils/activityLog'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -24,7 +25,8 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      await signInWithEmailAndPassword(auth, email, password)
+      const { user } = await signInWithEmailAndPassword(auth, email, password)
+      await logActivity(db, user.uid, user.email || null, 'login', {})
       navigate('/')
     } catch (err) {
       setError(err.code === 'auth/invalid-credential' ? 'Email o contraseña incorrectos' : err.message)

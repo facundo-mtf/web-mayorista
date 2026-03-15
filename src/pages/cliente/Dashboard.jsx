@@ -3,13 +3,24 @@ import { useAuth } from '../../context/AuthContext'
 
 export default function Dashboard() {
   const { profile } = useAuth()
+  const descuento = profile?.descuentoBase != null ? Number(profile.descuentoBase) : 0
+  const tieneDescuento = descuento > 0
 
   return (
     <div className="container page">
       <h1 className="page-title">Bienvenido, {profile?.nombreEmpresa || 'Cliente'}</h1>
       <p className="page-subtitle">
-        Tu descuento base es del {profile?.descuentoBase ?? 0}%. Accedé al catálogo para realizar pedidos.
+        {tieneDescuento
+          ? `Tu descuento especial es del ${descuento}%.`
+          : (
+              <>
+                Comunicate por{' '}
+                <a href="https://wa.me/5491171435864" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+                {' '}para solicitar un descuento especial.
+              </>
+            )}
       </p>
+      <p className="page-subtitle page-subtitle-iva">Los precios no incluyen IVA.</p>
       <div className="dashboard-cards">
         <Link to="/catalogo" className="card card-link">
           <h3>Realizar pedido</h3>

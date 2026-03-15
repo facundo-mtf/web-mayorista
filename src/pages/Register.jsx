@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase/config'
+import { logActivity } from '../utils/activityLog'
 
 export default function Register() {
   const [form, setForm] = useState({
@@ -11,6 +12,7 @@ export default function Register() {
     nombre: '',
     apellido: '',
     telefono: '',
+    telefonoAlternativo: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -31,11 +33,13 @@ export default function Register() {
         nombreContacto: form.nombre || null,
         apellidoContacto: form.apellido || null,
         telefonoContacto: form.telefono || null,
+        telefonoAlternativo: form.telefonoAlternativo || null,
         emailContacto: form.email,
         role: 'cliente',
         approved: true,
         createdAt: new Date(),
       })
+      await logActivity(db, user.uid, form.email, 'register', {})
       navigate('/datos', { state: { fromRegister: true } })
     } catch (err) {
       setError(err.code === 'auth/email-already-in-use' ? 'Ese email ya está registrado' : err.message)
@@ -100,6 +104,16 @@ export default function Register() {
               value={form.telefono}
               onChange={handleChange}
               required
+            />
+          </label>
+          <label>
+            Teléfono alternativo
+            <input
+              type="tel"
+              name="telefonoAlternativo"
+              value={form.telefonoAlternativo}
+              onChange={handleChange}
+              placeholder="Opcional"
             />
           </label>
           <button type="submit" className="btn btn-primary btn-block" disabled={loading}>

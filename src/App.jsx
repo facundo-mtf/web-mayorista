@@ -1,10 +1,11 @@
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { auth } from './firebase/config'
 import { useAuth } from './context/AuthContext'
 import { CarritoProvider } from './context/CarritoContext'
 
 import Layout from './components/Layout'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/cliente/Dashboard'
@@ -44,19 +45,40 @@ function ProtectedRoute({ children, requireAdmin }) {
   return children
 }
 
+function HomeOrLanding() {
+  const { user, profile, loading } = useAuth()
+  const { pathname } = useLocation()
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+        <p>Cargando...</p>
+      </div>
+    )
+  }
+
+  if (!user) {
+    if (pathname === '/' || pathname === '') return <Landing />
+    return <Navigate to="/login" replace />
+  }
+
+  if (profile?.deleted) return <Navigate to="/login?reason=deleted" replace />
+
+  return (
+    <CarritoProvider>
+      <Layout />
+    </CarritoProvider>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/registro" element={<Register />} />
 
-      <Route path="/" element={
-        <ProtectedRoute>
-          <CarritoProvider>
-            <Layout />
-          </CarritoProvider>
-        </ProtectedRoute>
-      }>
+      <Route path="/" element={<HomeOrLanding />}>
         <Route index element={<Dashboard />} />
         <Route path="catalogo" element={<Catalogo />} />
         <Route path="checkout" element={<Checkout />} />

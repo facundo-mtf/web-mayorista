@@ -138,24 +138,23 @@ export default function AdminPedidoDetalle() {
             <tr>
               <th>SKU</th>
               <th>Descripción</th>
-              <th>Bultos</th>
+              <th>Unid.</th>
               <th>Precio unit.</th>
-              <th>Precio bulto</th>
               <th>Subtotal</th>
             </tr>
           </thead>
           <tbody>
             {pedido.items?.map((item, i) => {
+              const unidades = item.unidades ?? item.bultos ?? 0
               const precioUnit = item.precioUnitario ?? (item.precioPorBulto ?? 0) / (item.unidadesPorBulto ?? 1)
-              const precioBulto = item.precioPorBulto ?? precioUnit * (item.unidadesPorBulto ?? 1)
+              const subtotal = unidades * precioUnit
               return (
                 <tr key={i}>
                   <td className="sku-cell"><strong>{item.sku || '-'}</strong></td>
                   <td>{item.descripcion}</td>
-                  <td>{item.bultos}</td>
+                  <td>{unidades}</td>
                   <td>${formatMoneda(precioUnit)}</td>
-                  <td>${formatMoneda(precioBulto)}</td>
-                  <td>${formatMoneda((item.bultos || 0) * precioBulto)}</td>
+                  <td>${formatMoneda(subtotal)}</td>
                 </tr>
               )
             })}

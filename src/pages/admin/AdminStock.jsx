@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import imageCompression from 'browser-image-compression'
-import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, orderBy, writeBatch } from 'firebase/firestore'
+import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, orderBy, writeBatch, getDocs } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { formatMoneda } from '../../utils/formatoNumero'
@@ -26,7 +26,6 @@ export default function AdminCatalogo() {
     dimensiones: '',
     presentacion: '',
     precioUnitario: '',
-    unidadesPorBulto: '',
     categoriaId: '',
   })
   const [editando, setEditando] = useState(null)
@@ -42,9 +41,9 @@ export default function AdminCatalogo() {
     dimensiones: '',
     presentacion: '',
     precioUnitario: '',
-    unidadesPorBulto: '',
     categoriaId: '',
   })
+  const [ajustandoPrecios, setAjustandoPrecios] = useState(false)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'productos'), (snap) => {
@@ -106,9 +105,6 @@ export default function AdminCatalogo() {
     setGuardando(true)
     try {
     const precioUnitario = Number(form.precioUnitario) || 0
-    const unidadesPorBulto = Number(form.unidadesPorBulto) || 1
-    const precioPorBulto = precioUnitario * unidadesPorBulto
-
     const files = form.imagenFiles || []
     const imagenes = (await Promise.all(files.map((f, i) => subirImagen(f, i)))).filter(Boolean)
 
@@ -122,14 +118,14 @@ export default function AdminCatalogo() {
       dimensiones: form.dimensiones || null,
       presentacion: form.presentacion || null,
       precioUnitario,
-      unidadesPorBulto,
-      precioPorBulto,
+      unidadesPorBulto: 1,
+      precioPorBulto: precioUnitario,
       activo: true,
       catalogo: catalogoActivo,
       categoriaId: form.categoriaId || null,
       orden: maxOrden + 1,
     })
-    setForm({ descripcion: '', sku: '', imagenFiles: [], dimensiones: '', presentacion: '', precioUnitario: '', unidadesPorBulto: '', categoriaId: '' })
+    setForm({ descripcion: '', sku: '', imagenFiles: [], dimensiones: '', presentacion: '', precioUnitario: '', categoriaId: '' })
     notificarTodosLosClientes('Nuevo producto', 'Hay un nuevo producto en el catálogo.').catch(() => {})
     } finally {
       setGuardando(false)
@@ -147,7 +143,6 @@ export default function AdminCatalogo() {
       dimensiones: String(p.dimensiones ?? ''),
       presentacion: String(p.presentacion ?? ''),
       precioUnitario: String(p.precioUnitario ?? ''),
-      unidadesPorBulto: String(p.unidadesPorBulto ?? '1'),
       categoriaId: p.categoriaId || '',
     })
   }
@@ -157,9 +152,6 @@ export default function AdminCatalogo() {
     setGuardando(true)
     try {
     const precioUnitario = Number(editForm.precioUnitario) || 0
-    const unidadesPorBulto = Number(editForm.unidadesPorBulto) || 1
-    const precioPorBulto = precioUnitario * unidadesPorBulto
-
     const imagenes = [...(editForm.imagenes || [])]
     const nuevos = editForm.nuevosArchivos || []
     const urlsNuevos = (await Promise.all(nuevos.map((f, i) => subirImagen(f, i)))).filter(Boolean)
@@ -173,8 +165,8 @@ export default function AdminCatalogo() {
       dimensiones: editForm.dimensiones || null,
       presentacion: editForm.presentacion || null,
       precioUnitario,
-      unidadesPorBulto,
-      precioPorBulto,
+      unidadesPorBulto: 1,
+      precioPorBulto: precioUnitario,
       catalogo: catalogoActivo,
       categoriaId: editForm.categoriaId || null,
     })
@@ -198,6 +190,35 @@ export default function AdminCatalogo() {
     const [removed] = arr.splice(from, 1)
     arr.splice(to, 0, removed)
     setEditForm(f => ({ ...f, imagenes: arr }))
+  }
+
+  const ajustarPreciosAltos = async () => {
+    if (!confirm('¿Aplicar -20% a todos los productos con precio unitario o por bulto ≥ $40.000? Esta acción modifica los precios en la base de datos.')) return
+    setAjustandoPrecios(true)
+    try {
+      const snap = await getDocs(collection(db, 'productos'))
+      const toUpdate = snap.docs.filter(d => {
+        const p = d.data()
+        const precioUnit = p.precioUnitario ?? (p.precioPorBulto ?? 0) / (p.unidadesPorBulto ?? 1)
+        const precioBulto = p.precioPorBulto ?? (p.precioUnitario ?? 0) * (p.unidadesPorBulto ?? 1)
+        return precioUnit >= 40000 || precioBulto >= 40000
+      })
+      for (const d of toUpdate) {
+        const p = d.data()
+        const precioUnit = p.precioUnitario ?? (p.precioPorBulto ?? 0) / (p.unidadesPorBulto ?? 1)
+        const precioBulto = p.precioPorBulto ?? (p.precioUnitario ?? 0) * (p.unidadesPorBulto ?? 1)
+        const updates = {}
+        if (precioUnit >= 40000) updates.precioUnitario = Math.round(precioUnit * 0.8 * 100) / 100
+        if (precioBulto >= 40000) updates.precioPorBulto = Math.round(precioBulto * 0.8 * 100) / 100
+        if (Object.keys(updates).length) await updateDoc(doc(db, 'productos', d.id), updates)
+      }
+      alert(toUpdate.length ? `Se actualizaron ${toUpdate.length} producto(s) con -20%.` : 'No había productos con precio ≥ $40.000.')
+    } catch (e) {
+      console.error(e)
+      alert('Error al ajustar precios: ' + (e.message || 'Revisá la consola.'))
+    } finally {
+      setAjustandoPrecios(false)
+    }
   }
 
   const productosDelCatalogo = productos.filter(p => (p.catalogo || 'polesie') === catalogoActivo)
@@ -340,7 +361,6 @@ export default function AdminCatalogo() {
           <input placeholder="Dimensiones" value={form.dimensiones} onChange={(e) => setForm({ ...form, dimensiones: e.target.value })} />
           <input placeholder="Presentación" value={form.presentacion} onChange={(e) => setForm({ ...form, presentacion: e.target.value })} />
           <input type="number" placeholder="Precio unitario *" value={form.precioUnitario} onChange={(e) => setForm({ ...form, precioUnitario: e.target.value })} required />
-          <input type="number" placeholder="Unidades por bulto" value={form.unidadesPorBulto} onChange={(e) => setForm({ ...form, unidadesPorBulto: e.target.value })} min="1" />
           <select value={form.categoriaId} onChange={(e) => setForm({ ...form, categoriaId: e.target.value })} style={{ minWidth: 140 }}>
             <option value="">Sin categoría</option>
             {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
@@ -353,6 +373,16 @@ export default function AdminCatalogo() {
         <div className="admin-section-header">
           <h2>Productos ({productosVisibles.length}{busqueda ? ` de ${productosDelCatalogo.length}` : ''})</h2>
           <span className="hint" style={{ marginLeft: '0.5rem', fontWeight: 'normal' }}>Arrastrá las filas para cambiar el orden</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={ajustarPreciosAltos}
+            disabled={ajustandoPrecios}
+            title="Aplicar -20% a productos con precio ≥ $40.000"
+            style={{ marginLeft: 'auto' }}
+          >
+            {ajustandoPrecios ? 'Ajustando...' : 'Precios ≥40k → -20%'}
+          </button>
           <input
             type="search"
             placeholder="Buscar por descripción, SKU o palabras clave..."
@@ -374,14 +404,11 @@ export default function AdminCatalogo() {
                 <th>Dimensiones</th>
                 <th>Presentación</th>
                 <th>Precio unit.</th>
-                <th>Unid/bulto</th>
-                <th>Precio/bulto</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}>
               {productosVisibles.map((p, idx) => {
-                const precioPorBulto = p.precioPorBulto ?? (p.precioUnitario ?? 0) * (p.unidadesPorBulto ?? 1)
                 const isDragging = arrastrando === p.id
                 return (
                   <tr
@@ -518,14 +545,6 @@ export default function AdminCatalogo() {
                         `$${formatMoneda(p.precioUnitario ?? 0)}`
                       )}
                     </td>
-                    <td>
-                      {editando === p.id ? (
-                        <input type="number" value={editForm.unidadesPorBulto} onChange={(e) => setEditForm({ ...editForm, unidadesPorBulto: e.target.value })} style={{ width: 70 }} min="1" />
-                      ) : (
-                        p.unidadesPorBulto ?? 1
-                      )}
-                    </td>
-                    <td>${formatMoneda(precioPorBulto)}</td>
                     <td>
                       {editando === p.id ? (
                         <div className="acciones-cell">

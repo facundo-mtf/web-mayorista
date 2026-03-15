@@ -211,10 +211,10 @@ export async function exportarPedidoPDF(pedido) {
   y += 6
 
   const items = pedido.items || []
-  const colW2 = [22, 70, 18, 28, 28, 38]
+  const colW2 = [22, 70, 22, 32, 42]
   const descColW = colW2[1]
   const lineH = 5
-  const headers = ['SKU', 'Descripción', 'Bultos', 'P. unit.', 'P. bulto', 'Subtotal']
+  const headers = ['SKU', 'Descripción', 'Unid.', 'P. unit.', 'Subtotal']
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(8)
   pdf.text(headers[0], margin, y)
@@ -222,7 +222,6 @@ export async function exportarPedidoPDF(pedido) {
   pdf.text(headers[2], margin + colW2[0] + colW2[1], y)
   pdf.text(headers[3], margin + colW2[0] + colW2[1] + colW2[2], y)
   pdf.text(headers[4], margin + colW2[0] + colW2[1] + colW2[2] + colW2[3], y)
-  pdf.text(headers[5], margin + colW2[0] + colW2[1] + colW2[2] + colW2[3] + colW2[4], y)
   y += 8
 
   function wrapText(str, maxWidth) {
@@ -250,9 +249,9 @@ export async function exportarPedidoPDF(pedido) {
       pdf.addPage()
       y = 20
     }
+    const unidades = it.unidades ?? it.bultos ?? 0
     const precioUnit = it.precioUnitario ?? (it.precioPorBulto ?? 0) / (it.unidadesPorBulto ?? 1)
-    const precioBulto = it.precioPorBulto ?? precioUnit * (it.unidadesPorBulto ?? 1)
-    const subtotal = (it.bultos ?? 0) * precioBulto
+    const subtotal = unidades * precioUnit
     const descLines = wrapText(it.descripcion ?? '-', descColW)
     const rowH = Math.max(10, descLines.length * lineH + 4)
     const startY = y
@@ -260,10 +259,9 @@ export async function exportarPedidoPDF(pedido) {
     descLines.forEach((ln, i) => {
       pdf.text(ln, margin + colW2[0], startY + i * lineH)
     })
-    pdf.text(String(it.bultos ?? 0), margin + colW2[0] + colW2[1], startY)
+    pdf.text(String(unidades), margin + colW2[0] + colW2[1], startY)
     pdf.text('$' + formatNum(precioUnit), margin + colW2[0] + colW2[1] + colW2[2], startY)
-    pdf.text('$' + formatNum(precioBulto), margin + colW2[0] + colW2[1] + colW2[2] + colW2[3], startY)
-    pdf.text('$' + formatNum(subtotal), margin + colW2[0] + colW2[1] + colW2[2] + colW2[3] + colW2[4], startY)
+    pdf.text('$' + formatNum(subtotal), margin + colW2[0] + colW2[1] + colW2[2] + colW2[3], startY)
     y = startY + rowH
   }
 
@@ -348,34 +346,34 @@ export function exportarPedidoExcel(pedido) {
     ['Email', pedido.contacto?.email || '-'],
     ...(pedido.observaciones ? [['Observaciones / Comentarios', pedido.observaciones]] : []),
     [],
-    ['SKU', 'Descripción', 'Bultos', 'Unid/bulto', 'Precio unit.', 'Precio bulto', 'Subtotal'],
+    ['SKU', 'Descripción', 'Unidades', 'Precio unit.', 'Subtotal'],
   ]
   for (const it of items) {
-    const subtotal = (it.bultos ?? 0) * (it.precioPorBulto ?? 0)
+    const unidades = it.unidades ?? it.bultos ?? 0
+    const precioUnit = it.precioUnitario ?? (it.precioPorBulto ?? 0) / (it.unidadesPorBulto ?? 1)
+    const subtotal = unidades * precioUnit
     rows.push([
       it.sku ?? '-',
       it.descripcion ?? '-',
-      it.bultos ?? 0,
-      it.unidadesPorBulto ?? 1,
-      it.precioUnitario ?? 0,
-      it.precioPorBulto ?? 0,
+      unidades,
+      precioUnit,
       subtotal,
     ])
   }
   rows.push([])
-  rows.push(['Total a pagar', '', '', '', '', '', ''])
+  rows.push(['Total a pagar', '', '', '', ''])
   const subtotalBruto = pedido.subtotal ?? 0
   const descPct = pedido.descuentoBase ?? 0
   const subtotalConDescuentoBase = subtotalBruto * (1 - descPct / 100)
   const esFacturaA = pedido.condicionFiscal === 'A'
   const neto = esFacturaA ? (pedido.total ?? 0) / 1.21 : (pedido.total ?? 0)
   const iva = esFacturaA ? (pedido.total ?? 0) - neto : 0
-  rows.push(['Subtotal bruto', '', '', '', '', '', pedido.subtotal ?? 0])
-  if (descPct > 0) rows.push(['Desc. ' + descPct + '%', '', '', '', '', '', subtotalBruto - subtotalConDescuentoBase])
-  if (pedido.aplicaProntoPago) rows.push(['Desc. pronto pago 10%', '', '', '', '', '', subtotalConDescuentoBase - subtotalConDescuentoBase * 0.9])
-  rows.push(['Subtotal con descuento', '', '', '', '', '', neto])
-  if (esFacturaA) rows.push(['I.V.A 21%', '', '', '', '', '', iva])
-  rows.push(['TOTAL', '', '', '', '', '', pedido.total ?? 0])
+  rows.push(['Subtotal bruto', '', '', '', pedido.subtotal ?? 0])
+  if (descPct > 0) rows.push(['Desc. ' + descPct + '%', '', '', '', subtotalBruto - subtotalConDescuentoBase])
+  if (pedido.aplicaProntoPago) rows.push(['Desc. pronto pago 10%', '', '', '', subtotalConDescuentoBase - subtotalConDescuentoBase * 0.9])
+  rows.push(['Subtotal con descuento', '', '', '', neto])
+  if (esFacturaA) rows.push(['I.V.A 21%', '', '', '', iva])
+  rows.push(['TOTAL', '', '', '', pedido.total ?? 0])
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
   const wb = XLSX.utils.book_new()

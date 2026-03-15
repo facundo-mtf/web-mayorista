@@ -5,11 +5,13 @@ import ImageLightbox from '../../components/ImageLightbox'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../context/AuthContext'
 import { useCarrito } from '../../context/CarritoContext'
+import { useActivityLog } from '../../utils/activityLog'
 import { formatMoneda } from '../../utils/formatoNumero'
 
 export default function Catalogo() {
-  const { profile } = useAuth()
+  const { profile, user } = useAuth()
   const { carrito, setCarrito } = useCarrito()
+  const { log } = useActivityLog()
   const [productos, setProductos] = useState([])
   const [categorias, setCategorias] = useState([])
   const [ofertas, setOfertas] = useState([])
@@ -56,17 +58,21 @@ export default function Catalogo() {
     return () => unsub()
   }, [])
 
+  useEffect(() => {
+    if (user) log('page_catalogo', {})
+  }, [user?.uid])
+
   const descuentoBase = profile?.descuentoBase ?? 0
   const ofertaByProductId = Object.fromEntries((ofertas || []).map(o => [o.productId, o]))
 
-  const precioConDescuento = (precioPorBulto) => {
-    return precioPorBulto * (1 - descuentoBase / 100)
+  const precioConDescuento = (precioUnitario) => {
+    return precioUnitario * (1 - descuentoBase / 100)
   }
 
-  const getPrecioBultoConOferta = (producto, precioPorBulto) => {
+  const getPrecioUnitarioConOferta = (producto, precioUnitario) => {
     const oferta = ofertaByProductId[producto.id]
-    if (!oferta?.descuentoPct) return precioPorBulto
-    return precioPorBulto * (1 - (oferta.descuentoPct ?? 0) / 100)
+    if (!oferta?.descuentoPct) return precioUnitario
+    return precioUnitario * (1 - (oferta.descuentoPct ?? 0) / 100)
   }
 
   const productosDelCatalogo = productos.filter(p => (p.catalogo || 'polesie') === catalogoActivo)
@@ -101,13 +107,12 @@ export default function Catalogo() {
 
   const productosVisibles = ordenarPorCategoria(filtrarProductos())
 
-  function ProductCard({ p, getImagenes, addToCart, carrito, descuentoBase, ofertaByProductId, getPrecioBultoConOferta, precioConDescuento, formatMoneda, imageIndexByProduct, cycleProductImage, cycleProductImagePrev, setLightboxImagenes }) {
-    const unidPorBulto = p.unidadesPorBulto ?? 1
-    const precioPorBulto = p.precioPorBulto ?? (p.precioUnitario ?? 0) * unidPorBulto
-    const precioConOfertaBulto = getPrecioBultoConOferta(p, precioPorBulto)
+  function ProductCard({ p, getImagenes, addToCart, carrito, descuentoBase, ofertaByProductId, getPrecioUnitarioConOferta, precioConDescuento, formatMoneda, imageIndexByProduct, cycleProductImage, cycleProductImagePrev, setLightboxImagenes }) {
+    const precioUnitario = p.precioUnitario ?? (p.precioPorBulto ?? 0) / (p.unidadesPorBulto ?? 1)
+    const precioUnitarioConOferta = getPrecioUnitarioConOferta(p, precioUnitario)
     const tieneOferta = !!ofertaByProductId[p.id]
     const enCarrito = carrito.find(c => c.id === p.id)
-    const bultosEnCarrito = enCarrito?.qty ?? 0
+    const unidadesEnCarrito = enCarrito?.qty ?? 0
     const imagenes = getImagenes(p)
     const idx = imageIndexByProduct[p.id] ?? 0
     const imgActual = imagenes[idx] ?? imagenes[0]
@@ -133,36 +138,21 @@ export default function Catalogo() {
           <p className="product-codigo">{p.sku ?? p.codigo ?? ''}</p>
           {p.presentacion && <p className="product-presentacion">{p.presentacion}</p>}
           {p.dimensiones && <p className="product-dimensiones">{p.dimensiones}</p>}
-          <p className="product-unidades">({unidPorBulto} unid. por bulto)</p>
           <p className="product-price-unit">
-            Precio unitario:{' '}
+            Precio por unidad{' '}
             {tieneOferta ? (
               <>
-                <span className="product-price-base-tachado">${formatMoneda(p.precioUnitario ?? precioPorBulto / unidPorBulto)}</span>
-                <span className="product-price-final-oferta">${formatMoneda(precioConOfertaBulto / unidPorBulto)}</span>
+                <span className="product-price-base-tachado">${formatMoneda(precioUnitario)}</span>
+                <span className="product-price-final-oferta">${formatMoneda(precioUnitarioConOferta)}</span>
               </>
             ) : (
-              <>${formatMoneda(p.precioUnitario ?? precioPorBulto / unidPorBulto)}</>
+              <>${formatMoneda(precioUnitario)}</>
             )}{' '}
             <span className="price-sin-iva">(sin IVA)</span>
           </p>
-          <p className={`product-price ${tieneOferta ? 'price-with-offer' : ''}`}>
-            {tieneOferta ? (
-              <>
-                <span className="product-price-base-tachado">${formatMoneda(precioPorBulto)}</span>
-                <span className="product-price-final-oferta">${formatMoneda(precioConOfertaBulto)}</span>
-                <span className="price-unit">/ bulto</span>
-              </>
-            ) : (
-              <>
-                ${formatMoneda(precioPorBulto)}
-                <span className="price-unit">/ bulto</span>
-              </>
-            )}
-          </p>
         </div>
         <div className="product-add">
-          <input type="number" min="1" defaultValue="1" className="product-qty-input" id={`qty-${p.id}`} />
+          <input type="number" min="1" defaultValue="1" className="product-qty-input" id={`qty-${p.id}`} placeholder="Unid." />
           <button className="btn btn-primary btn-sm" onClick={() => {
             const input = document.getElementById(`qty-${p.id}`)
             const val = input ? parseInt(input.value, 10) : 1
@@ -170,31 +160,38 @@ export default function Catalogo() {
             if (input) input.value = '1'
           }}>Agregar</button>
         </div>
-        {bultosEnCarrito > 0 && (
-          <p className="product-in-cart">{bultosEnCarrito} bulto{bultosEnCarrito !== 1 ? 's' : ''} en carrito</p>
+        {unidadesEnCarrito > 0 && (
+          <p className="product-in-cart">{unidadesEnCarrito} {unidadesEnCarrito === 1 ? 'unidad' : 'unidades'} en carrito</p>
         )}
       </div>
     )
   }
 
   const subtotalCarritoAntesDesc = carrito.reduce((s, i) => {
-    const precioPorBulto = i.precioPorBulto ?? (i.precioUnitario ?? 0) * (i.unidadesPorBulto ?? 1)
-    const precioFinal = getPrecioBultoConOferta(i, precioPorBulto)
+    const precioUnit = i.precioUnitario ?? (i.precioPorBulto ?? 0) / (i.unidadesPorBulto ?? 1)
+    const precioFinal = getPrecioUnitarioConOferta(i, precioUnit)
     return s + precioFinal * i.qty
   }, 0)
   const montoDescuentoUsuario = subtotalCarritoAntesDesc * (descuentoBase / 100)
   const subtotalCarrito = subtotalCarritoAntesDesc - montoDescuentoUsuario
+  const COMPRA_MINIMA = 1000000
+  const alcanzaCompraMinima = subtotalCarrito >= COMPRA_MINIMA
 
   const actualizarCantidadCarrito = (productoId, qty) => {
     const n = Math.max(0, Math.floor(Number(qty)) || 0)
+    const item = carrito.find(i => i.id === productoId)
     if (n === 0) {
       setCarrito(carrito.filter(i => i.id !== productoId))
+      if (item) log('cart_remove_product', { productId: productoId, productName: item.descripcion || item.nombre })
       return
     }
     setCarrito(carrito.map(i => i.id === productoId ? { ...i, qty: n } : i))
+    if (item) log('cart_update_qty', { productId: productoId, productName: item.descripcion || item.nombre, unidades: n })
   }
   const eliminarDelCarrito = (productoId) => {
+    const item = carrito.find(i => i.id === productoId)
     setCarrito(carrito.filter(i => i.id !== productoId))
+    if (item) log('cart_remove_product', { productId: productoId, productName: item.descripcion || item.nombre })
   }
   const cycleProductImage = (productId, totalImages, e) => {
     e?.preventDefault?.()
@@ -221,16 +218,17 @@ export default function Catalogo() {
     setTimeout(() => { window.scrollTo(0, scrollY) }, 0)
   }
 
-  const addToCart = (prod, bultos = 1) => {
-    const bultosInt = Math.floor(Number(bultos)) || 1
-    if (bultosInt < 1) return
+  const addToCart = (prod, unidades = 1) => {
+    const unidInt = Math.floor(Number(unidades)) || 1
+    if (unidInt < 1) return
     const scrollY = window.scrollY
     const enCarrito = carrito.find(p => p.id === prod.id)
     if (enCarrito) {
-      setCarrito(carrito.map(p => p.id === prod.id ? { ...p, qty: p.qty + bultosInt } : p))
+      setCarrito(carrito.map(p => p.id === prod.id ? { ...p, qty: p.qty + unidInt } : p))
     } else {
-      setCarrito([...carrito, { ...prod, qty: bultosInt }])
+      setCarrito([...carrito, { ...prod, qty: unidInt }])
     }
+    log('cart_add_product', { productId: prod.id, productName: prod.descripcion || prod.nombre, unidades: unidInt })
     requestAnimationFrame(() => { window.scrollTo(0, scrollY) })
     setTimeout(() => { window.scrollTo(0, scrollY) }, 0)
   }
@@ -241,7 +239,7 @@ export default function Catalogo() {
         <div className="container page">
           <h1 className="page-title">Realizar pedido</h1>
           <p className="page-subtitle">
-            Precios con {descuentoBase}% de descuento base. Pronto pago adicional aplica en checkout. Solo se venden bultos cerrados.
+            Compra mínima $1.000.000
           </p>
           <div className="catalogo-tabs">
             {catalogos.map(c => (
@@ -285,7 +283,7 @@ export default function Catalogo() {
                     carrito={carrito}
                     descuentoBase={descuentoBase}
                     ofertaByProductId={ofertaByProductId}
-                    getPrecioBultoConOferta={getPrecioBultoConOferta}
+                    getPrecioUnitarioConOferta={getPrecioUnitarioConOferta}
                     precioConDescuento={precioConDescuento}
                     formatMoneda={formatMoneda}
                     imageIndexByProduct={imageIndexByProduct}
@@ -313,7 +311,7 @@ export default function Catalogo() {
               carrito={carrito}
               descuentoBase={descuentoBase}
               ofertaByProductId={ofertaByProductId}
-              getPrecioBultoConOferta={getPrecioBultoConOferta}
+              getPrecioUnitarioConOferta={getPrecioUnitarioConOferta}
               precioConDescuento={precioConDescuento}
               formatMoneda={formatMoneda}
               imageIndexByProduct={imageIndexByProduct}
@@ -335,18 +333,17 @@ export default function Catalogo() {
             <>
               <ul className="carrito-sidebar-list">
                 {carrito.map(i => {
-                  const unidPorBulto = i.unidadesPorBulto ?? 1
-                  const precioPorBulto = i.precioPorBulto ?? (i.precioUnitario ?? 0) * unidPorBulto
-                  const precioBultoFinal = getPrecioBultoConOferta(i, precioPorBulto)
+                  const precioUnit = i.precioUnitario ?? (i.precioPorBulto ?? 0) / (i.unidadesPorBulto ?? 1)
+                  const precioUnitFinal = getPrecioUnitarioConOferta(i, precioUnit)
                   const tieneOferta = !!ofertaByProductId[i.id]
-                  const totalLinea = precioBultoFinal * i.qty
+                  const totalLinea = precioUnitFinal * i.qty
                   return (
                     <li key={i.id} className="carrito-sidebar-item">
                       <span className="carrito-sidebar-nombre">{i.descripcion ?? i.nombre}</span>
                       <div className="carrito-sidebar-row">
                         <span className="carrito-sidebar-detalle">
-                          {tieneOferta && <span className="product-price-base-tachado">${formatMoneda(precioPorBulto * i.qty)}</span>}
-                          {i.qty} bulto{i.qty !== 1 ? 's' : ''} · $/u ${formatMoneda(precioBultoFinal / unidPorBulto)} (sin IVA) · ${formatMoneda(totalLinea)}
+                          {tieneOferta && <span className="product-price-base-tachado">${formatMoneda(precioUnit * i.qty)}</span>}
+                          {i.qty} {i.qty === 1 ? 'unidad' : 'unid.'} · $/u ${formatMoneda(precioUnitFinal)} (sin IVA) · ${formatMoneda(totalLinea)}
                         </span>
                       </div>
                       <div className="carrito-sidebar-actions">
@@ -362,7 +359,14 @@ export default function Catalogo() {
                 <p className="carrito-sidebar-descuento">Descuento ({descuentoBase}%): <span className="monto-negativo">-${formatMoneda(montoDescuentoUsuario)}</span></p>
               )}
               <p className="carrito-sidebar-total">Total: ${formatMoneda(subtotalCarrito)}</p>
-              <Link to="/checkout" className="btn btn-primary btn-block">Ir al carrito</Link>
+              {!alcanzaCompraMinima && (
+                <p className="carrito-sidebar-minimo">Compra mínima: ${formatMoneda(COMPRA_MINIMA)}</p>
+              )}
+              {alcanzaCompraMinima ? (
+                <Link to="/checkout" className="btn btn-primary btn-block">Ir al carrito</Link>
+              ) : (
+                <span className="btn btn-primary btn-block btn-disabled" aria-disabled="true">Ir al carrito</span>
+              )}
             </>
           )}
         </div>
@@ -372,8 +376,13 @@ export default function Catalogo() {
           <div className="carrito-fab-info">
             <span>{carrito.length} {carrito.length === 1 ? 'producto' : 'productos'}</span>
             <span className="carrito-fab-total">Total: ${formatMoneda(subtotalCarrito)}</span>
+            {!alcanzaCompraMinima && <span className="carrito-fab-minimo">Mín. $1.000.000</span>}
           </div>
-          <Link to="/checkout" className="btn btn-primary btn-sm">Ir al carrito</Link>
+          {alcanzaCompraMinima ? (
+            <Link to="/checkout" className="btn btn-primary btn-sm">Ir al carrito</Link>
+          ) : (
+            <span className="btn btn-primary btn-sm btn-disabled" aria-disabled="true">Ir al carrito</span>
+          )}
         </div>
       )}
       {lightboxImagenes && (

@@ -76,6 +76,11 @@ export default function AdminDashboard() {
           <p>Vendedores</p>
           <Link to="/admin/vendedores" className="btn btn-primary btn-sm">Gestionar vendedores</Link>
         </div>
+        <div className="card">
+          <h3>Fotos y videos</h3>
+          <p>Material audiovisual para clientes</p>
+          <Link to="/admin/fotos-videos" className="btn btn-primary btn-sm">Gestionar fotos y videos</Link>
+        </div>
       </div>
     </div>
   )
