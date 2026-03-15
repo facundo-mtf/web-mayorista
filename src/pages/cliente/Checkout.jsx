@@ -225,6 +225,10 @@ export default function Checkout() {
   const montoDescuentoUsuario = subtotalAntesDesc * (descuentoBase / 100)
   const subtotal = subtotalAntesDesc - montoDescuentoUsuario
   const conProntoPago = aplicaProntoPago ? subtotal * 0.9 : subtotal
+  // IVA: precios sin IVA; siempre se suma 21% al subtotal para el total final
+  const subtotalSinIva = conProntoPago
+  const montoIva = subtotalSinIva * 0.21
+  const totalConIva = subtotalSinIva + montoIva
 
   const datosContactoCompra = {
     nombre: profile?.nombreCompra ?? profile?.nombreContacto ?? '',
@@ -324,7 +328,9 @@ export default function Checkout() {
         subtotal,
         descuentoBase,
         aplicaProntoPago,
-        total: conProntoPago,
+        total: totalConIva,
+        subtotalSinIva,
+        montoIva,
         comprobanteUrl: null,
         contactoCompra: datosContactoCompra,
         contactoPago: datosContactoPago,
@@ -334,7 +340,7 @@ export default function Checkout() {
         estado: 'pendiente',
       }
       const ref = await addDoc(collection(db, 'pedidos'), pedidoPayload)
-      log('order_placed', { orderId: ref.id, total: conProntoPago, itemsCount: carrito.length })
+      log('order_placed', { orderId: ref.id, total: totalConIva, itemsCount: carrito.length })
       setPedidoEnviadoData({ ...pedidoPayload, id: ref.id })
       setCarrito([])
       setSelector1(''); setSelector2(''); setSelector3(''); setSelector4('')
@@ -555,7 +561,7 @@ export default function Checkout() {
           </div>
 
           <div className="checkout-totales totales-block">
-            <div className="totales-fila"><span className="totales-label">Subtotal</span><span className="totales-valor">${formatMoneda(subtotalAntesDesc)}</span></div>
+            <div className="totales-fila"><span className="totales-label">Subtotal (productos)</span><span className="totales-valor">${formatMoneda(subtotalAntesDesc)}</span></div>
             {descuentoBase > 0 && montoDescuentoUsuario > 0 && (
               <div className="totales-fila">
                 <span className="totales-label">Descuento ({descuentoBase} %)</span>
@@ -569,10 +575,10 @@ export default function Checkout() {
               </div>
             )}
             <div className="totales-sep" />
-            <div className="totales-fila"><span className="totales-label">Subtotal</span><span className="totales-valor">${formatMoneda(selector3 === 'A' ? conProntoPago / 1.21 : conProntoPago)}</span></div>
-            {selector3 === 'A' && <div className="totales-fila"><span className="totales-label">I.V.A. 21,00 %</span><span className="totales-valor">${formatMoneda(conProntoPago - conProntoPago / 1.21)}</span></div>}
+            <div className="totales-fila"><span className="totales-label">Subtotal (sin IVA)</span><span className="totales-valor">${formatMoneda(subtotalSinIva)}</span></div>
+            <div className="totales-fila"><span className="totales-label">I.V.A. 21 %</span><span className="totales-valor">${formatMoneda(montoIva)}</span></div>
             <div className="totales-sep" />
-            <div className="totales-fila totales-total"><span className="totales-label">TOTAL</span><span className="totales-valor">${formatMoneda(conProntoPago)}</span></div>
+            <div className="totales-fila totales-total"><span className="totales-label">TOTAL</span><span className="totales-valor">${formatMoneda(totalConIva)}</span></div>
           </div>
 
           <div className="checkout-acciones">

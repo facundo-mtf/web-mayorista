@@ -160,7 +160,11 @@ input, select, textarea {
 /* Catalog */
 .catalogo-con-layout { display: flex; gap: 1.5rem; align-items: flex-start; max-width: 1400px; margin: 0 auto; padding: 0 1.5rem 2rem; }
 .catalogo-main { flex: 1; min-width: 0; }
-.catalogo-carrito-sidebar { width: 320px; flex-shrink: 0; position: sticky; top: 1rem; }
+.catalogo-carrito-sidebar { width: 320px; flex-shrink: 0; }
+@media (min-width: 901px) {
+  .catalogo-carrito-sidebar { position: fixed; right: 1.5rem; top: 5.5rem; z-index: 40; width: 320px; }
+  .catalogo-con-layout { padding-right: 340px; }
+}
 .carrito-sidebar-inner { background: white; border: 2px solid var(--color-border); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow); }
 .carrito-sidebar-inner h3 { font-size: 1rem; margin-bottom: 0.75rem; }
 .carrito-sidebar-empty { color: var(--color-text-muted); font-size: 0.9rem; }
