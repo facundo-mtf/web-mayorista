@@ -133,6 +133,9 @@ export default function AdminUsuarioDetalle() {
       case 'page_checkout': return 'Entró al Carrito / Checkout'
       case 'page_datos': return 'Entró a Datos'
       case 'page_fotos_videos': return 'Entró a Fotos y videos'
+      case 'material_play': return `Reprodujo video${p.titulo ? `: ${p.titulo}` : ''}`
+      case 'material_descargar': return `Descargó ${p.tipo === 'video' ? 'video' : 'imagen'}${p.titulo ? `: ${p.titulo}` : ''}`
+      case 'material_ver_imagen': return `Abrió imagen${p.titulo ? `: ${p.titulo}` : ''}`
       case 'datos_razon_add': return `Agregó razón social: ${p.razonSocial || '-'}`
       case 'datos_razon_edit': return `Editó razón social: ${p.razonSocial || '-'}`
       case 'datos_sucursal_add': return 'Agregó sucursal de entrega'

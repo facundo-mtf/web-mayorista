@@ -13,6 +13,8 @@ export default function AdminFotosVideos() {
   const [editandoId, setEditandoId] = useState(null)
   const [editForm, setEditForm] = useState({ titulo: '', descripcion: '' })
   const [form, setForm] = useState({ tipo: 'foto', titulo: '', descripcion: '', file: null })
+  const [menuAbiertoId, setMenuAbiertoId] = useState(null)
+  const [expandidoId, setExpandidoId] = useState(null)
 
   useEffect(() => {
     const q = query(collection(db, 'materialPublico'), orderBy('createdAt', 'desc'))
@@ -90,6 +92,19 @@ export default function AdminFotosVideos() {
     setEditandoId(null)
   }
 
+  useEffect(() => {
+    if (!menuAbiertoId) return
+    const close = () => setMenuAbiertoId(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [menuAbiertoId])
+
+  const toggleExpandido = (item) => {
+    if (item.tipo !== 'video') return
+    setExpandidoId((id) => (id === item.id ? null : item.id))
+    setMenuAbiertoId(null)
+  }
+
   return (
     <div className="container page">
       <h1 className="page-title">Fotos y videos</h1>
@@ -135,11 +150,46 @@ export default function AdminFotosVideos() {
         ) : (
           <ul className="admin-fotos-videos-ul">
             {items.map((item) => (
-              <li key={item.id} className="admin-fotos-videos-li">
+              <li key={item.id} className={`admin-fotos-videos-li ${expandidoId === item.id ? 'admin-fotos-videos-li-expandido' : ''}`}>
                 {item.tipo === 'video' ? (
-                  <video src={item.url} controls style={{ maxWidth: 200, maxHeight: 120 }} />
+                  expandidoId === item.id ? (
+                    <div className="admin-fotos-videos-video-block">
+                      <video src={item.url} controls className="admin-fotos-videos-video-grande" controlsList="nodownload" />
+                      <button type="button" className="btn btn-ghost btn-sm admin-fotos-videos-cerrar" onClick={() => setExpandidoId(null)}>
+                        Cerrar
+                      </button>
+                      <div className="admin-fotos-videos-menu-wrap admin-fotos-videos-menu-wrap-below" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm admin-fotos-videos-menu-btn"
+                          onClick={(e) => { e.stopPropagation(); setMenuAbiertoId(menuAbiertoId === item.id ? null : item.id); }}
+                          aria-label="Más opciones"
+                          aria-expanded={menuAbiertoId === item.id}
+                        >
+                          ⋮ Más opciones
+                        </button>
+                        {menuAbiertoId === item.id && (
+                          <div className="admin-fotos-videos-dropdown admin-fotos-videos-dropdown-below" role="menu">
+                            <button type="button" className="admin-fotos-videos-dropdown-item" role="menuitem" onClick={(e) => { abrirEditar(item); setMenuAbiertoId(null); }}>Editar</button>
+                            <a href={item.url} download target="_blank" rel="noopener noreferrer" className="admin-fotos-videos-dropdown-item" role="menuitem">Descargar</a>
+                            <button type="button" className="admin-fotos-videos-dropdown-item admin-fotos-videos-dropdown-item-danger" role="menuitem" onClick={() => { eliminar(item.id); setMenuAbiertoId(null); }}>Eliminar</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="admin-fotos-videos-thumb admin-fotos-videos-thumb-video"
+                      onClick={() => toggleExpandido(item)}
+                      aria-label="Expandir video"
+                    >
+                      <video src={item.url} preload="metadata" muted className="admin-fotos-videos-thumb-video-el" />
+                      <span className="admin-fotos-videos-thumb-play" aria-hidden>▶</span>
+                    </button>
+                  )
                 ) : (
-                  <img src={item.url} alt="" style={{ maxWidth: 120, maxHeight: 80, objectFit: 'cover' }} />
+                  <img src={item.url} alt="" className="admin-fotos-videos-img-thumb" />
                 )}
                 {editandoId === item.id ? (
                   <form onSubmit={guardarEdicion} className="admin-fotos-videos-edit-form">
@@ -163,12 +213,25 @@ export default function AdminFotosVideos() {
                 ) : (
                   <span>{item.titulo || item.descripcion || '(sin título)'}</span>
                 )}
-                {editandoId !== item.id && (
-                  <>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => abrirEditar(item)}>Editar</button>
-                    <a href={item.url} download target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">Descargar</a>
-                    <button type="button" className="btn btn-danger-outline btn-sm" onClick={() => eliminar(item.id)}>Eliminar</button>
-                  </>
+                {editandoId !== item.id && item.tipo !== 'video' && (
+                  <div className="admin-fotos-videos-menu-wrap" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm admin-fotos-videos-menu-btn"
+                      onClick={(e) => { e.stopPropagation(); setMenuAbiertoId(menuAbiertoId === item.id ? null : item.id); }}
+                      aria-label="Más opciones"
+                      aria-expanded={menuAbiertoId === item.id}
+                    >
+                      ⋮
+                    </button>
+                    {menuAbiertoId === item.id && (
+                      <div className="admin-fotos-videos-dropdown admin-fotos-videos-dropdown-below" role="menu">
+                        <button type="button" className="admin-fotos-videos-dropdown-item" role="menuitem" onClick={(e) => { abrirEditar(item); setMenuAbiertoId(null); }}>Editar</button>
+                        <a href={item.url} download target="_blank" rel="noopener noreferrer" className="admin-fotos-videos-dropdown-item" role="menuitem">Descargar</a>
+                        <button type="button" className="admin-fotos-videos-dropdown-item admin-fotos-videos-dropdown-item-danger" role="menuitem" onClick={() => { eliminar(item.id); setMenuAbiertoId(null); }}>Eliminar</button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </li>
             ))}

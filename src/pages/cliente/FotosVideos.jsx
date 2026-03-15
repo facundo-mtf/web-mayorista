@@ -40,10 +40,21 @@ export default function FotosVideos() {
             <div key={item.id} className="fotos-videos-card">
               {item.tipo === 'video' && item.url ? (
                 <div className="fotos-videos-video-wrap">
-                  <video src={item.url} controls className="fotos-videos-video" />
+                  <video
+                    src={item.url}
+                    controls
+                    className="fotos-videos-video"
+                    onPlay={() => log('material_play', { materialId: item.id, tipo: 'video', titulo: item.titulo || null })}
+                  />
                 </div>
               ) : item.url ? (
-                <a href={item.url} target="_blank" rel="noopener noreferrer" className="fotos-videos-img-link">
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="fotos-videos-img-link"
+                  onClick={() => log('material_ver_imagen', { materialId: item.id, tipo: 'foto', titulo: item.titulo || null })}
+                >
                   <img src={item.url} alt={item.titulo || 'Imagen'} className="fotos-videos-img" />
                 </a>
               ) : null}
@@ -55,7 +66,14 @@ export default function FotosVideos() {
                   </>
                 )}
                 {item.url && (
-                  <a href={item.url} download target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm">
+                  <a
+                    href={item.url}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => log('material_descargar', { materialId: item.id, tipo: item.tipo, titulo: item.titulo || null })}
+                  >
                     Descargar
                   </a>
                 )}

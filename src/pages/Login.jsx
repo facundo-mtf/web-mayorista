@@ -14,6 +14,7 @@ export default function Login() {
   const [recuperarEnviado, setRecuperarEnviado] = useState(false)
   const [recuperarError, setRecuperarError] = useState('')
   const [recuperando, setRecuperando] = useState(false)
+  const [mostrarPassword, setMostrarPassword] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const reasonDeleted = searchParams.get('reason') === 'deleted'
@@ -131,12 +132,28 @@ export default function Login() {
               </label>
               <label>
                 Contraseña
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <div className="auth-password-wrap">
+                  <input
+                    type={mostrarPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="auth-input auth-input-password"
+                  />
+                  <button
+                    type="button"
+                    className="auth-password-toggle"
+                    onClick={() => setMostrarPassword((v) => !v)}
+                    title={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    aria-label={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {mostrarPassword ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                    )}
+                  </button>
+                </div>
               </label>
               <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
                 {loading ? 'Ingresando...' : 'Ingresar'}

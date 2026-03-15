@@ -225,9 +225,10 @@ export default function Checkout() {
   const montoDescuentoUsuario = subtotalAntesDesc * (descuentoBase / 100)
   const subtotal = subtotalAntesDesc - montoDescuentoUsuario
   const conProntoPago = aplicaProntoPago ? subtotal * 0.9 : subtotal
-  // IVA: precios sin IVA; siempre se suma 21% al subtotal para el total final
+  // IVA: solo se suma 21% cuando eligen Factura A; con Remito/Nota de pedido el total es sin IVA
   const subtotalSinIva = conProntoPago
-  const montoIva = subtotalSinIva * 0.21
+  const esFacturaA = selector3 === 'A'
+  const montoIva = esFacturaA ? subtotalSinIva * 0.21 : 0
   const totalConIva = subtotalSinIva + montoIva
 
   const datosContactoCompra = {
@@ -576,7 +577,9 @@ export default function Checkout() {
             )}
             <div className="totales-sep" />
             <div className="totales-fila"><span className="totales-label">Subtotal (sin IVA)</span><span className="totales-valor">${formatMoneda(subtotalSinIva)}</span></div>
-            <div className="totales-fila"><span className="totales-label">I.V.A. 21 %</span><span className="totales-valor">${formatMoneda(montoIva)}</span></div>
+            {esFacturaA && (
+              <div className="totales-fila"><span className="totales-label">I.V.A. 21 %</span><span className="totales-valor">${formatMoneda(montoIva)}</span></div>
+            )}
             <div className="totales-sep" />
             <div className="totales-fila totales-total"><span className="totales-label">TOTAL</span><span className="totales-valor">${formatMoneda(totalConIva)}</span></div>
           </div>
