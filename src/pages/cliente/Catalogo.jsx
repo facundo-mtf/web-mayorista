@@ -174,7 +174,7 @@ export default function Catalogo() {
   }, 0)
   const montoDescuentoUsuario = subtotalCarritoAntesDesc * (descuentoBase / 100)
   const subtotalCarrito = subtotalCarritoAntesDesc - montoDescuentoUsuario
-  const COMPRA_MINIMA = 1000000
+  const COMPRA_MINIMA = 500000
   const alcanzaCompraMinima = subtotalCarrito >= COMPRA_MINIMA
 
   const actualizarCantidadCarrito = (productoId, qty) => {
@@ -239,7 +239,7 @@ export default function Catalogo() {
         <div className="container page">
           <h1 className="page-title">Realizar pedido</h1>
           <p className="page-subtitle">
-            Compra mínima $1.000.000
+            Compra mínima ${formatMoneda(COMPRA_MINIMA)}
           </p>
           <div className="catalogo-tabs">
             {catalogos.map(c => (
@@ -376,7 +376,7 @@ export default function Catalogo() {
           <div className="carrito-fab-info">
             <span>{carrito.length} {carrito.length === 1 ? 'producto' : 'productos'}</span>
             <span className="carrito-fab-total">Total: ${formatMoneda(subtotalCarrito)}</span>
-            {!alcanzaCompraMinima && <span className="carrito-fab-minimo">Mín. $1.000.000</span>}
+            {!alcanzaCompraMinima && <span className="carrito-fab-minimo">Mín. ${formatMoneda(COMPRA_MINIMA)}</span>}
           </div>
           {alcanzaCompraMinima ? (
             <Link to="/checkout" className="btn btn-primary btn-sm">Ir al carrito</Link>
